@@ -11,6 +11,7 @@ export interface IAdmin extends mongoose.Document {
   lastLogin?: Date;
   createdAt: Date;
   updatedAt: Date;
+  comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
 const adminSchema = new mongoose.Schema<IAdmin>(

@@ -2,14 +2,14 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
+      "@modules/*": ["src/modules/*"],
       "@controllers/*": ["src/controllers/*"],
       "@middlewares/*": ["src/middlewares/*"],
       "@models/*": ["src/models/*"],
       "@routes/*": ["src/routes/*"],
       "@services/*": ["src/services/*"],
-      "@utils/*": ["src/utils/*"],
       "@config/*": ["src/config/*"],
-      "@types/*": ["src/types/*"]
+      "@shared/*": ["src/shared/*"]
     },
     "target": "es2020",
     "module": "commonjs",
