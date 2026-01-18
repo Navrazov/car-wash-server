@@ -6,17 +6,31 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 
 export const configureMiddleware = (app: Express): void => {
-  // Security
-  app.use(helmet());
+  // Security (отключаем некоторые helmet опции для dev)
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginOpenerPolicy: { policy: 'unsafe-none' },
+  }));
 
-  // CORS
-  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:8080'];
-  app.use(
-    cors({
-      origin: allowedOrigins,
+  // CORS - в dev режиме разрешаем всё
+  const isDev = process.env.NODE_ENV !== 'production';
+  
+  if (isDev) {
+    app.use(cors({
+      origin: true, // Разрешить любой origin в dev
       credentials: true,
-    })
-  );
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    }));
+  } else {
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173'];
+    app.use(
+      cors({
+        origin: allowedOrigins,
+        credentials: true,
+      })
+    );
+  }
 
   // Body parsing
   app.use(express.json());

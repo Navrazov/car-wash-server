@@ -281,3 +281,4 @@ app.listen(PORT, () => {
   console.log(`🚗 Car Wash Server запущен на http://localhost:${PORT}`);
 });
 
+

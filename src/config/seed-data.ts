@@ -1,0 +1,143 @@
+import Admin from '../models/Admin.model';
+import Location from '../models/Location.model';
+import Service from '../models/Service.model';
+import logger from './logger';
+
+export const seedDatabase = async () => {
+  try {
+    // Check if already seeded
+    const existingLocations = await Location.countDocuments();
+    if (existingLocations > 0) {
+      logger.info('📦 Database already has data, skipping seed');
+      return;
+    }
+
+    logger.info('🌱 Seeding database with initial data...');
+
+    // Create admin
+    const adminExists = await Admin.findOne({ username: 'admin' });
+    if (!adminExists) {
+      const admin = new Admin({
+        username: 'admin',
+        password: 'admin123',
+        name: 'Администратор',
+        email: 'admin@carwash.ru',
+        role: 'super_admin',
+      });
+      await admin.save();
+      logger.info('✅ Admin created (username: admin, password: admin123)');
+    }
+
+    // Create locations
+    const locations = [
+      {
+        name: 'Автомойка на Ленина',
+        address: 'ул. Ленина, 45',
+        phone: '+7 (999) 123-45-67',
+        workingHours: '9:00 - 21:00',
+        description: 'Современная автомойка в центре города',
+        isActive: true,
+      },
+      {
+        name: 'Автомойка на Гагарина',
+        address: 'пр. Гагарина, 12',
+        phone: '+7 (999) 765-43-21',
+        workingHours: '8:00 - 22:00',
+        description: 'Быстрая мойка и детейлинг',
+        isActive: true,
+      },
+      {
+        name: 'Автомойка на Мира',
+        address: 'ул. Мира, 78',
+        phone: '+7 (999) 111-22-33',
+        workingHours: '9:00 - 20:00',
+        description: 'Профессиональная мойка и полировка',
+        isActive: true,
+      },
+    ];
+
+    await Location.insertMany(locations);
+    logger.info(`✅ ${locations.length} locations created`);
+
+    // Create services
+    const services = [
+      {
+        name: 'Экспресс-мойка',
+        description: 'Быстрая мойка кузова снаружи',
+        price: 500,
+        duration: 30,
+        category: 'wash',
+        isActive: true,
+      },
+      {
+        name: 'Стандартная мойка',
+        description: 'Мойка кузова снаружи и внутри салона',
+        price: 1000,
+        duration: 60,
+        category: 'wash',
+        isActive: true,
+      },
+      {
+        name: 'Комплексная мойка',
+        description: 'Полная мойка + чернение шин + ароматизация',
+        price: 1500,
+        duration: 90,
+        category: 'wash',
+        isActive: true,
+      },
+      {
+        name: 'Химчистка салона',
+        description: 'Глубокая химчистка салона автомобиля',
+        price: 3000,
+        duration: 180,
+        category: 'detailing',
+        isActive: true,
+      },
+      {
+        name: 'Полировка кузова',
+        description: 'Профессиональная полировка кузова',
+        price: 5000,
+        duration: 240,
+        category: 'detailing',
+        isActive: true,
+      },
+      {
+        name: 'Нанесение воска',
+        description: 'Защитное покрытие воском',
+        price: 1200,
+        duration: 60,
+        category: 'maintenance',
+        isActive: true,
+      },
+      {
+        name: 'Мойка двигателя',
+        description: 'Безопасная мойка моторного отсека',
+        price: 800,
+        duration: 45,
+        category: 'maintenance',
+        isActive: true,
+      },
+      {
+        name: 'Чернение шин',
+        description: 'Обработка шин специальным составом',
+        price: 300,
+        duration: 15,
+        category: 'maintenance',
+        isActive: true,
+      },
+    ];
+
+    await Service.insertMany(services);
+    logger.info(`✅ ${services.length} services created`);
+
+    logger.info('🎉 Database seeded successfully!');
+    logger.info('');
+    logger.info('📋 Admin credentials:');
+    logger.info('   Login: admin');
+    logger.info('   Password: admin123');
+    logger.info('');
+  } catch (error) {
+    logger.error('Error seeding database:', error);
+  }
+};
+

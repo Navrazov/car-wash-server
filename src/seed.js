@@ -100,3 +100,4 @@ console.log('✅ База данных заполнена!');
 console.log('👤 Логин: admin');
 console.log('🔑 Пароль: admin123');
 
+

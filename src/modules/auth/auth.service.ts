@@ -28,7 +28,13 @@ export class AuthService {
     }
 
     logger.info(`Verification code sent to ${cleanPhone}`);
-    return { expiresIn: 300 };
+    
+    // В dev режиме (без SMS_API_ID) возвращаем код для UI
+    const isDev = !process.env.SMS_API_ID;
+    return { 
+      expiresIn: 300,
+      ...(isDev && { devCode: code })
+    };
   }
 
   async verifyCode(phone: string, code: string) {

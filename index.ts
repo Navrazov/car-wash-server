@@ -7,8 +7,8 @@ import { configureMiddleware } from './src/middlewares';
 import { configureRoutes } from './src/routes';
 import logger from './src/config/logger';
 
-// Validate required environment variables
-const requiredEnvVars = ['PORT', 'SECRET_ACCESS_JWT', 'SECRET_REFRESH_JWT', 'MONGODB'];
+// Validate required environment variables (MONGODB is now optional - will use memory server)
+const requiredEnvVars = ['PORT', 'SECRET_ACCESS_JWT', 'SECRET_REFRESH_JWT'];
 const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
@@ -24,15 +24,22 @@ configureMiddleware(app);
 // Configure routes
 configureRoutes(app);
 
-// Connect to database
-connectToDatabase();
-
 // Start server
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  logger.info(`🚗 Car Wash Server running on port ${PORT}`);
-  logger.info(`❤️  Health check: http://localhost:${PORT}/health`);
-  logger.info(`📱 API: http://localhost:${PORT}/api`);
+const startServer = async () => {
+  // Connect to database first
+  await connectToDatabase();
+
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, () => {
+    logger.info(`🚗 Car Wash Server running on port ${PORT}`);
+    logger.info(`❤️  Health check: http://localhost:${PORT}/health`);
+    logger.info(`📱 API: http://localhost:${PORT}/api`);
+  });
+};
+
+startServer().catch((err) => {
+  logger.error('Failed to start server:', err);
+  process.exit(1);
 });
 
 // Graceful shutdown

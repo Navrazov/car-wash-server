@@ -1,12 +1,11 @@
 # Dependencies
 node_modules/
-package-lock.json
 
-# Build
+# Build output
 dist/
 build/
 
-# Environment
+# Environment variables
 .env
 .env.local
 .env.*.local
@@ -15,28 +14,27 @@ build/
 logs/
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
 *~
 
-# OS
+# OS files
 .DS_Store
 Thumbs.db
 
-# SQLite (old)
-*.db
-*.sqlite
-*.sqlite3
+# Debug
+*.pid
+*.seed
 
-# Testing
+# TypeScript
+*.tsbuildinfo
+
+# Test coverage
 coverage/
-.nyc_output/
 
 # Temporary files
 tmp/
