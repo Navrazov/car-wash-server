@@ -1,6 +1,7 @@
 import Admin from '../models/Admin.model';
 import Location from '../models/Location.model';
 import Service from '../models/Service.model';
+import Box from '../models/Box.model';
 import logger from './logger';
 
 export const seedDatabase = async () => {
@@ -56,8 +57,26 @@ export const seedDatabase = async () => {
       },
     ];
 
-    await Location.insertMany(locations);
+    const createdLocations = await Location.insertMany(locations);
     logger.info(`✅ ${locations.length} locations created`);
+
+    // Create boxes for each location
+    const boxes = [];
+    for (const location of createdLocations) {
+      // Each location has 3-4 boxes
+      const boxCount = location.name.includes('Ленина') ? 4 : 3;
+      for (let i = 1; i <= boxCount; i++) {
+        boxes.push({
+          locationId: location._id,
+          name: `Бокс ${i}`,
+          number: i,
+          description: `Мойка ${i} на ${location.name}`,
+          isActive: true,
+        });
+      }
+    }
+    await Box.insertMany(boxes);
+    logger.info(`✅ ${boxes.length} boxes created`);
 
     // Create services
     const services = [

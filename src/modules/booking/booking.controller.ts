@@ -10,7 +10,7 @@ export const createBooking = async (req: AuthRequest, res: Response, next: NextF
       return;
     }
 
-    const { locationId, serviceId, bookingDate, bookingTime, notes } = req.body;
+    const { locationId, boxId, serviceId, bookingDate, bookingTime, notes } = req.body;
 
     if (!locationId || !serviceId || !bookingDate || !bookingTime) {
       res.status(400).json({ error: 'Все поля обязательны' });
@@ -20,6 +20,7 @@ export const createBooking = async (req: AuthRequest, res: Response, next: NextF
     const result = await bookingService.create({
       userId,
       locationId,
+      boxId,
       serviceId,
       bookingDate,
       bookingTime,

@@ -5,4 +5,6 @@ export * from './location';
 export * from './service';
 export * from './customer';
 export * from './stats';
+export * from './box';
+export * from './reports';
 

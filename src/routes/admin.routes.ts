@@ -15,6 +15,8 @@ import {
   deleteService,
 } from '@controllers/admin.controller';
 import { authenticateAdmin } from '@middlewares/auth.middleware';
+import { boxRoutes } from '../modules/box';
+import { reportsRoutes } from '../modules/reports';
 
 const router = Router();
 
@@ -53,5 +55,15 @@ router.post('/services', createService);
 router.get('/services', getServices);
 router.put('/services/:id', updateService);
 router.delete('/services/:id', deleteService);
+
+/**
+ * Боксы
+ */
+router.use('/boxes', boxRoutes);
+
+/**
+ * Отчёты
+ */
+router.use('/reports', reportsRoutes);
 
 export default router;

@@ -12,6 +12,7 @@ import logger from '@config/logger';
 interface CreateBookingData {
   userId: string;
   locationId: string;
+  boxId?: string;
   serviceId: string;
   bookingDate: string;
   bookingTime: string;
@@ -39,12 +40,21 @@ export class BookingService {
       throw new NotFoundError('Услуга');
     }
 
-    const existingBooking = await Booking.findOne({
-      locationId: data.locationId,
+    // Check for existing booking at this time
+    // If boxId is provided, check only for that box; otherwise check for any booking at this time/location
+    const existingBookingQuery: any = {
       bookingDate: new Date(data.bookingDate),
       bookingTime: data.bookingTime,
       status: { $nin: ['cancelled'] },
-    });
+    };
+    
+    if (data.boxId) {
+      existingBookingQuery.boxId = data.boxId;
+    } else {
+      existingBookingQuery.locationId = data.locationId;
+    }
+    
+    const existingBooking = await Booking.findOne(existingBookingQuery);
 
     if (existingBooking) {
       throw new ValidationError('Это время уже забронировано');
@@ -55,6 +65,7 @@ export class BookingService {
     const booking = new Booking({
       userId: data.userId,
       locationId: data.locationId,
+      boxId: data.boxId,
       serviceId: data.serviceId,
       bookingDate: new Date(data.bookingDate),
       bookingTime: data.bookingTime,

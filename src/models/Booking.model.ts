@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 export interface IBooking extends mongoose.Document {
   userId: mongoose.Types.ObjectId;
   locationId: mongoose.Types.ObjectId;
+  boxId?: mongoose.Types.ObjectId;
   serviceId: mongoose.Types.ObjectId;
   bookingDate: Date;
   bookingTime: string;
@@ -31,6 +32,10 @@ const bookingSchema = new mongoose.Schema<IBooking>(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Location',
       required: true,
+    },
+    boxId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Box',
     },
     serviceId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -94,6 +99,7 @@ const bookingSchema = new mongoose.Schema<IBooking>(
 // Indexes
 bookingSchema.index({ userId: 1, createdAt: -1 });
 bookingSchema.index({ locationId: 1, bookingDate: 1 });
+bookingSchema.index({ boxId: 1, bookingDate: 1, bookingTime: 1 });
 bookingSchema.index({ status: 1 });
 bookingSchema.index({ prepaymentStatus: 1 });
 bookingSchema.index({ bookingDate: 1, bookingTime: 1 });

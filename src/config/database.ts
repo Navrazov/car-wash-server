@@ -39,6 +39,9 @@ export const connectToDatabase = async (): Promise<void> => {
         await mongoose.connect(memoryUri);
         logger.info('✅ Connected to in-memory MongoDB (fallback)');
         logger.info('⚠️  Data will be lost when server restarts');
+        
+        // Auto-seed in fallback memory mode
+        await seedDatabase();
         return;
       } catch (memErr) {
         logger.error('❌ Failed to start in-memory MongoDB:', memErr);
