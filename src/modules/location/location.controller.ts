@@ -56,3 +56,4 @@ export const deleteLocation = async (req: AuthRequest, res: Response, next: Next
   }
 };
 
+

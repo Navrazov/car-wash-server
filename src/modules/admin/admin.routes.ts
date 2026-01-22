@@ -10,3 +10,4 @@ router.post('/create', authenticateAdmin, requireSuperAdmin, createAdmin);
 
 export default router;
 
+

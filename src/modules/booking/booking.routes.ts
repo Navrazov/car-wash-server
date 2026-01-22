@@ -22,3 +22,4 @@ router.post('/:id/cancel', cancelBooking);
 
 export default router;
 
+

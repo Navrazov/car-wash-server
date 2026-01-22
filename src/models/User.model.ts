@@ -8,6 +8,7 @@ export interface IUser extends mongoose.Document {
   carNumber?: string;
   totalVisits: number;
   totalSpent: number;
+  rating: number;
   isActive: boolean;
   verificationCode?: string;
   verificationCodeExpires?: Date;
@@ -50,6 +51,12 @@ const userSchema = new mongoose.Schema<IUser>(
       type: Number,
       default: 0,
       min: 0,
+    },
+    rating: {
+      type: Number,
+      default: 100,
+      min: 0,
+      max: 100,
     },
     isActive: {
       type: Boolean,

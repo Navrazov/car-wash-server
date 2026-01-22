@@ -4,6 +4,7 @@ import Location from '@models/Location.model';
 import Service from '@models/Service.model';
 import paymentService from '@services/payment.service';
 import smsService from '@services/sms.service';
+import { customerService } from '@modules/customer/customer.service';
 import { NotFoundError, ValidationError } from '@shared/errors';
 import { BOOKING_STATUSES, TIME_SLOTS, DEFAULT_PREPAYMENT } from '@shared/constants';
 import { BookingStatus } from '@shared/types';
@@ -175,6 +176,10 @@ export class BookingService {
     }
 
     await booking.save();
+
+    // Update user rating after status change
+    await customerService.updateRating(booking.userId.toString());
+
     logger.info(`Booking ${id} status updated to ${status}`);
 
     return booking;
@@ -204,6 +209,9 @@ export class BookingService {
     booking.cancelReason = reason;
     booking.cancelledAt = new Date();
     await booking.save();
+
+    // Update user rating after cancellation
+    await customerService.updateRating(booking.userId.toString());
 
     logger.info(`Booking cancelled: ${booking._id}`);
 
@@ -272,4 +280,5 @@ export class BookingService {
 }
 
 export const bookingService = new BookingService();
+
 

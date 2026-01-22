@@ -20,3 +20,4 @@ export const getCustomerById = async (req: AuthRequest, res: Response, next: Nex
   }
 };
 
+

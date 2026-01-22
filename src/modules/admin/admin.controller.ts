@@ -49,3 +49,4 @@ export const createAdmin = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
+
