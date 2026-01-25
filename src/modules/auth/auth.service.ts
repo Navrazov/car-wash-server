@@ -1,5 +1,6 @@
 import User from '@models/User.model';
 import smsService from '@services/sms.service';
+import telegramGatewayService from '@services/telegramGateway.service';
 import { generateUserToken, generateRefreshToken } from '@shared/utils';
 import { NotFoundError, ValidationError } from '@shared/errors';
 import logger from '@config/logger';
@@ -7,32 +8,36 @@ import logger from '@config/logger';
 export class AuthService {
   async sendVerificationCode(phone: string) {
     const cleanPhone = phone.replace(/\D/g, '');
-
     const code = smsService.generateVerificationCode();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
     let user = await User.findOne({ phone: cleanPhone });
-
     if (!user) {
       user = new User({ phone: cleanPhone });
     }
-
     user.verificationCode = code;
     user.verificationCodeExpires = expiresAt;
     await user.save();
 
-    const sent = await smsService.sendVerificationCode(cleanPhone, code);
-
+    // 1. Пробуем отправить через Telegram Gateway
+    let channel: 'telegram' | 'sms' = 'telegram';
+    let sent = await telegramGatewayService.sendVerificationCode(cleanPhone, code);
     if (!sent) {
-      throw new Error('Ошибка отправки SMS');
+      // 2. Если не вышло — отправляем SMS
+      sent = await smsService.sendVerificationCode(cleanPhone, code);
+      channel = 'sms';
+    }
+    if (!sent) {
+      throw new Error('Ошибка отправки кода (Telegram/SMS)');
     }
 
-    logger.info(`Verification code sent to ${cleanPhone}`);
-    
-    // В dev режиме (без SMS_API_ID) возвращаем код для UI
+    logger.info(`Verification code sent to ${cleanPhone} via ${channel}`);
+
+    // В dev режиме (без SMS_API_ID) возвращаем код для UI, +инфо о канале
     const isDev = !process.env.SMS_API_ID;
-    return { 
+    return {
       expiresIn: 300,
+      channel,
       ...(isDev && { devCode: code })
     };
   }
@@ -78,11 +83,9 @@ export class AuthService {
 
   async getProfile(userId: string) {
     const user = await User.findById(userId);
-
     if (!user) {
       throw new NotFoundError('Пользователь');
     }
-
     return {
       id: user._id,
       phone: user.phone,
@@ -97,11 +100,9 @@ export class AuthService {
 
   async updateProfile(userId: string, data: { name?: string; email?: string; carModel?: string; carNumber?: string }) {
     const user = await User.findByIdAndUpdate(userId, data, { new: true, runValidators: true });
-
     if (!user) {
       throw new NotFoundError('Пользователь');
     }
-
     return {
       id: user._id,
       phone: user.phone,
@@ -114,5 +115,3 @@ export class AuthService {
 }
 
 export const authService = new AuthService();
-
-
