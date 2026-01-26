@@ -17,6 +17,13 @@ import {
 import { authenticateAdmin } from '@middlewares/auth.middleware';
 import { boxRoutes } from '../modules/box';
 import { reportsRoutes } from '../modules/reports';
+import {
+  getEmployees,
+  getEmployeeById,
+  createEmployee,
+  updateEmployee,
+  deleteEmployee,
+} from '../modules/employee';
 
 const router = Router();
 
@@ -65,5 +72,14 @@ router.use('/boxes', boxRoutes);
  * Отчёты
  */
 router.use('/reports', reportsRoutes);
+
+/**
+ * Сотрудники
+ */
+router.post('/employees', createEmployee);
+router.get('/employees', getEmployees);
+router.get('/employees/:id', getEmployeeById);
+router.put('/employees/:id', updateEmployee);
+router.delete('/employees/:id', deleteEmployee);
 
 export default router;

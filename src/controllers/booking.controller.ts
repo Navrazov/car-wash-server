@@ -14,7 +14,7 @@ import logger from '@config/logger';
 export const createBooking = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
-    const { locationId, serviceId, bookingDate, bookingTime, notes } = req.body;
+    const { locationId, serviceId, employeeId, bookingDate, bookingTime, notes } = req.body;
 
     if (!locationId || !serviceId || !bookingDate || !bookingTime) {
       res.status(400).json({ error: 'Все поля обязательны' });
@@ -37,6 +37,16 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
+    // Проверяем существование сотрудника, если указан
+    if (employeeId) {
+      const Employee = (await import('@models/Employee.model')).default;
+      const employee = await Employee.findById(employeeId);
+      if (!employee || !employee.isActive || employee.locationId.toString() !== locationId) {
+        res.status(404).json({ error: 'Сотрудник не найден или не работает в этой локации' });
+        return;
+      }
+    }
+
     // Проверяем доступность времени
     const existingBooking = await Booking.findOne({
       locationId,
@@ -57,6 +67,7 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
       userId,
       locationId,
       serviceId,
+      employeeId: employeeId || undefined,
       bookingDate: new Date(bookingDate),
       bookingTime,
       totalPrice: service.price,

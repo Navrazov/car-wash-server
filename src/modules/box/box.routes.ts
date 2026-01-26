@@ -18,3 +18,5 @@ router.get('/location/:locationId/available', boxController.getAvailableBoxes);
 export default router;
 
 
+
+

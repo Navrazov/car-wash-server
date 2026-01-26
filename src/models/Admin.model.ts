@@ -7,6 +7,7 @@ export interface IAdmin extends mongoose.Document {
   name: string;
   email?: string;
   role: 'admin' | 'super_admin';
+  locationId?: mongoose.Types.ObjectId;
   isActive: boolean;
   lastLogin?: Date;
   createdAt: Date;
@@ -43,6 +44,10 @@ const adminSchema = new mongoose.Schema<IAdmin>(
       type: String,
       enum: ['admin', 'super_admin'],
       default: 'admin',
+    },
+    locationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Location',
     },
     isActive: {
       type: Boolean,

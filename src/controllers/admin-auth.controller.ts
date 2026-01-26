@@ -55,6 +55,7 @@ export const adminLogin = async (req: Request, res: Response): Promise<void> => 
         name: admin.name,
         email: admin.email,
         role: admin.role,
+        locationId: admin.locationId,
       },
     });
   } catch (error) {
@@ -83,6 +84,7 @@ export const getAdminProfile = async (req: Request, res: Response): Promise<void
       name: admin.name,
       email: admin.email,
       role: admin.role,
+      locationId: admin.locationId,
       lastLogin: admin.lastLogin,
     });
   } catch (error) {
@@ -96,7 +98,7 @@ export const getAdminProfile = async (req: Request, res: Response): Promise<void
  */
 export const createAdmin = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { username, password, name, email, role } = req.body;
+    const { username, password, name, email, role, locationId } = req.body;
 
     if (!username || !password || !name) {
       res.status(400).json({ error: 'Username, password и name обязательны' });
@@ -116,6 +118,7 @@ export const createAdmin = async (req: Request, res: Response): Promise<void> =>
       name,
       email,
       role: role || 'admin',
+      locationId: locationId || undefined,
     });
 
     await admin.save();
@@ -130,6 +133,7 @@ export const createAdmin = async (req: Request, res: Response): Promise<void> =>
         name: admin.name,
         email: admin.email,
         role: admin.role,
+        locationId: admin.locationId,
       },
     });
   } catch (error) {

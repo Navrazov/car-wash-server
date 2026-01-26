@@ -5,6 +5,7 @@ export interface IBooking extends mongoose.Document {
   locationId: mongoose.Types.ObjectId;
   boxId?: mongoose.Types.ObjectId;
   serviceId: mongoose.Types.ObjectId;
+  employeeId?: mongoose.Types.ObjectId;
   bookingDate: Date;
   bookingTime: string;
   status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
@@ -41,6 +42,10 @@ const bookingSchema = new mongoose.Schema<IBooking>(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Service',
       required: true,
+    },
+    employeeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employee',
     },
     bookingDate: {
       type: Date,
@@ -100,6 +105,7 @@ const bookingSchema = new mongoose.Schema<IBooking>(
 bookingSchema.index({ userId: 1, createdAt: -1 });
 bookingSchema.index({ locationId: 1, bookingDate: 1 });
 bookingSchema.index({ boxId: 1, bookingDate: 1, bookingTime: 1 });
+bookingSchema.index({ employeeId: 1, bookingDate: 1, bookingTime: 1 });
 bookingSchema.index({ status: 1 });
 bookingSchema.index({ prepaymentStatus: 1 });
 bookingSchema.index({ bookingDate: 1, bookingTime: 1 });

@@ -48,3 +48,5 @@ const Box = mongoose.model<IBox>('Box', boxSchema);
 export default Box;
 
 
+
+

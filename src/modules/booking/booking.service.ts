@@ -2,6 +2,7 @@ import Booking from '@models/Booking.model';
 import User from '@models/User.model';
 import Location from '@models/Location.model';
 import Service from '@models/Service.model';
+import Employee from '@models/Employee.model';
 import paymentService from '@services/payment.service';
 import smsService from '@services/sms.service';
 import { customerService } from '@modules/customer/customer.service';
@@ -15,6 +16,7 @@ interface CreateBookingData {
   locationId: string;
   boxId?: string;
   serviceId: string;
+  employeeId?: string;
   bookingDate: string;
   bookingTime: string;
   notes?: string;
@@ -41,8 +43,20 @@ export class BookingService {
       throw new NotFoundError('Услуга');
     }
 
+    // If employeeId is provided, verify employee exists and belongs to location
+    if (data.employeeId) {
+      const employee = await Employee.findById(data.employeeId);
+      if (!employee || !employee.isActive) {
+        throw new NotFoundError('Сотрудник');
+      }
+      if (employee.locationId.toString() !== data.locationId) {
+        throw new ValidationError('Сотрудник не принадлежит выбранной локации');
+      }
+    }
+
     // Check for existing booking at this time
     // If boxId is provided, check only for that box; otherwise check for any booking at this time/location
+    // If employeeId is provided, also check for employee availability
     const existingBookingQuery: any = {
       bookingDate: new Date(data.bookingDate),
       bookingTime: data.bookingTime,
@@ -53,6 +67,18 @@ export class BookingService {
       existingBookingQuery.boxId = data.boxId;
     } else {
       existingBookingQuery.locationId = data.locationId;
+    }
+
+    // If employee is selected, check if they're already booked at this time
+    if (data.employeeId) {
+      const employeeBookingQuery = {
+        ...existingBookingQuery,
+        employeeId: data.employeeId,
+      };
+      const employeeBooking = await Booking.findOne(employeeBookingQuery);
+      if (employeeBooking) {
+        throw new ValidationError('Сотрудник уже занят в это время');
+      }
     }
     
     const existingBooking = await Booking.findOne(existingBookingQuery);
@@ -68,6 +94,7 @@ export class BookingService {
       locationId: data.locationId,
       boxId: data.boxId,
       serviceId: data.serviceId,
+      employeeId: data.employeeId,
       bookingDate: new Date(data.bookingDate),
       bookingTime: data.bookingTime,
       totalPrice: service.price,
@@ -117,6 +144,7 @@ export class BookingService {
     return Booking.find({ userId })
       .populate('locationId', 'name address phone')
       .populate('serviceId', 'name price duration')
+      .populate('employeeId', 'name phone position')
       .sort({ bookingDate: -1, bookingTime: -1 });
   }
 
@@ -127,6 +155,7 @@ export class BookingService {
     const booking = await Booking.findOne(filter)
       .populate('locationId')
       .populate('serviceId')
+      .populate('employeeId', 'name phone position')
       .populate('userId', 'name phone email carModel carNumber');
 
     if (!booking) {
@@ -152,6 +181,7 @@ export class BookingService {
       .populate('userId', 'name phone email carModel carNumber')
       .populate('locationId', 'name address phone')
       .populate('serviceId', 'name price duration')
+      .populate('employeeId', 'name phone position')
       .sort({ bookingDate: -1, bookingTime: -1 });
   }
 

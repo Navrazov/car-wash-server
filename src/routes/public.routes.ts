@@ -3,6 +3,7 @@ import Location from '@models/Location.model';
 import Service from '@models/Service.model';
 import Box from '@models/Box.model';
 import { boxService } from '../modules/box/box.service';
+import { getPublicEmployees } from '../modules/employee';
 
 const router = Router();
 
@@ -141,5 +142,12 @@ router.get('/locations/:locationId/boxes/available', async (req, res) => {
     res.status(500).json({ error: 'Ошибка сервера' });
   }
 });
+
+/**
+ * @route   GET /api/public/employees
+ * @desc    Получить список активных сотрудников для локации
+ * @access  Public
+ */
+router.get('/employees', getPublicEmployees);
 
 export default router;
