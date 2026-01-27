@@ -10,6 +10,8 @@ export interface ILocation extends mongoose.Document {
     latitude: number;
     longitude: number;
   };
+  rating: number; // Average rating 1-5
+  totalReviews: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -42,6 +44,17 @@ const locationSchema = new mongoose.Schema<ILocation>(
     coordinates: {
       latitude: Number,
       longitude: Number,
+    },
+    rating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
+    totalReviews: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     isActive: {
       type: Boolean,

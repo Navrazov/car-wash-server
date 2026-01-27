@@ -41,13 +41,29 @@ export const configureMiddleware = (app: Express): void => {
     app.use(morgan('dev'));
   }
 
-  // Rate limiting
+  // Rate limiting - более мягкий для dev режима
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 минут
-    max: 100, // максимум 100 запросов с одного IP
+    max: isDev ? 1000 : 100, // В dev режиме больше лимит
     message: 'Слишком много запросов с этого IP, попробуйте позже',
+    standardHeaders: true,
+    legacyHeaders: false,
   });
-  app.use('/api/', limiter);
+  
+  // Применяем rate limiting только к публичным API, не к админским
+  app.use('/api/public/', limiter);
+  app.use('/api/auth/', limiter);
+  app.use('/api/bookings/', limiter);
+  
+  // Для админских роутов - более мягкий лимит
+  const adminLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: isDev ? 2000 : 500,
+    message: 'Слишком много запросов, попробуйте позже',
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use('/api/admin/', adminLimiter);
 
   // SMS rate limiting (более строгий)
   const smsLimiter = rateLimit({

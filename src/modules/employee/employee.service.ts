@@ -9,11 +9,16 @@ export class EmployeeService {
     if (locationId) {
       filter.locationId = locationId;
     }
-    return Employee.find(filter).populate('locationId', 'name address').sort({ createdAt: -1 });
+    return Employee.find(filter)
+      .populate('locationId', 'name address')
+      .populate('boxId', 'name number')
+      .sort({ createdAt: -1 });
   }
 
   async getById(id: string) {
-    const employee = await Employee.findById(id).populate('locationId', 'name address');
+    const employee = await Employee.findById(id)
+      .populate('locationId', 'name address')
+      .populate('boxId', 'name number');
     if (!employee) {
       throw new NotFoundError('Сотрудник');
     }
@@ -22,7 +27,9 @@ export class EmployeeService {
 
   async getByLocation(locationId: string, activeOnly: boolean = true) {
     const filter: Record<string, unknown> = { locationId, isActive: activeOnly };
-    return Employee.find(filter).sort({ name: 1 });
+    return Employee.find(filter)
+      .populate('boxId', 'name number')
+      .sort({ name: 1 });
   }
 
   async create(data: Partial<IEmployee>) {

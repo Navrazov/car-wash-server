@@ -23,8 +23,20 @@ export const connectToDatabase = async (): Promise<void> => {
       await seedDatabase();
     } else {
       // Use external MongoDB
-      await mongoose.connect(mongoUri);
+      if (!mongoUri) {
+        throw new Error('MONGODB environment variable is not set');
+      }
+      logger.info('🔌 Connecting to MongoDB...');
+      await mongoose.connect(mongoUri, {
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+        maxPoolSize: 10,
+        retryWrites: true,
+        w: 'majority',
+      });
       logger.info('✅ Successfully connected to MongoDB');
+      logger.info(`📊 Database: ${mongoose.connection.name}`);
+      logger.info(`🌐 Host: ${mongoose.connection.host}:${mongoose.connection.port}`);
     }
   } catch (err) {
     logger.error('❌ MongoDB connection error:', err);

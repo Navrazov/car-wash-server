@@ -4,6 +4,7 @@ import Service from '@models/Service.model';
 import Box from '@models/Box.model';
 import { boxService } from '../modules/box/box.service';
 import { getPublicEmployees } from '../modules/employee';
+import { reviewRoutes } from '../modules/review';
 
 const router = Router();
 
@@ -149,5 +150,10 @@ router.get('/locations/:locationId/boxes/available', async (req, res) => {
  * @access  Public
  */
 router.get('/employees', getPublicEmployees);
+
+/**
+ * Reviews
+ */
+router.use('/reviews', reviewRoutes);
 
 export default router;

@@ -2,11 +2,14 @@ import mongoose from 'mongoose';
 
 export interface IEmployee extends mongoose.Document {
   locationId: mongoose.Types.ObjectId;
+  boxId?: mongoose.Types.ObjectId;
   name: string;
   phone?: string;
   email?: string;
   position?: string;
   specialization?: string[];
+  rating: number; // Average rating 1-5
+  totalReviews: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -18,6 +21,10 @@ const employeeSchema = new mongoose.Schema<IEmployee>(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Location',
       required: true,
+    },
+    boxId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Box',
     },
     name: {
       type: String,
@@ -41,6 +48,17 @@ const employeeSchema = new mongoose.Schema<IEmployee>(
     specialization: {
       type: [String],
       default: [],
+    },
+    rating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
+    totalReviews: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     isActive: {
       type: Boolean,

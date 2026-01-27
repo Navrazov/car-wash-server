@@ -24,6 +24,8 @@ import {
   updateEmployee,
   deleteEmployee,
 } from '../modules/employee';
+import { employeeScheduleRoutes } from '../modules/employee-schedule';
+import { reviewRoutes as adminReviewRoutes } from '../modules/review';
 
 const router = Router();
 
@@ -81,5 +83,15 @@ router.get('/employees', getEmployees);
 router.get('/employees/:id', getEmployeeById);
 router.put('/employees/:id', updateEmployee);
 router.delete('/employees/:id', deleteEmployee);
+
+/**
+ * Расписание сотрудников
+ */
+router.use('/employee-schedules', employeeScheduleRoutes);
+
+/**
+ * Отзывы и рейтинги (админ)
+ */
+router.use('/reviews', adminReviewRoutes);
 
 export default router;
