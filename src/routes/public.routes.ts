@@ -5,8 +5,23 @@ import Box from '@models/Box.model';
 import { boxService } from '../modules/box/box.service';
 import { getPublicEmployees } from '../modules/employee';
 import { reviewRoutes } from '../modules/review';
+import { adminInviteController } from '../modules/admin-invite';
 
 const router = Router();
+
+/**
+ * @route   GET /api/public/invite/:token
+ * @desc    Получить данные приглашения (публично)
+ * @access  Public
+ */
+router.get('/invite/:token', adminInviteController.getInviteByToken);
+
+/**
+ * @route   POST /api/public/invite/:token/accept
+ * @desc    Принять приглашение — создать админа (публично)
+ * @access  Public
+ */
+router.post('/invite/:token/accept', adminInviteController.acceptInvite);
 
 /**
  * @route   GET /api/public/locations

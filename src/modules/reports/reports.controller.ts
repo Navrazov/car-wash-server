@@ -58,6 +58,35 @@ export const reportsController = {
     }
   },
 
+  async getEmployeesReport(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { period = 'month', locationId, startDate, endDate } = req.query;
+      const report = await reportsService.getEmployeesReport(
+        period as 'week' | 'month' | 'quarter' | 'year' | 'custom',
+        locationId as string,
+        startDate ? new Date(startDate as string) : undefined,
+        endDate ? new Date(endDate as string) : undefined
+      );
+      res.json(report);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getTopEmployees(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { limit = '10', period = 'month', locationId } = req.query;
+      const employees = await reportsService.getTopEmployees(
+        parseInt(limit as string, 10),
+        period as 'week' | 'month' | 'quarter' | 'year',
+        locationId as string
+      );
+      res.json(employees);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getSummary(req: Request, res: Response, next: NextFunction) {
     try {
       const summary = await reportsService.getSummary();

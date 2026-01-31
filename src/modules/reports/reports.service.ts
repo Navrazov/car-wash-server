@@ -1,5 +1,6 @@
 import Booking from '../../models/Booking.model';
 import Box from '../../models/Box.model';
+import Employee from '../../models/Employee.model';
 import Location from '../../models/Location.model';
 import mongoose from 'mongoose';
 
@@ -15,6 +16,19 @@ interface BoxReport {
   revenue: number;
 }
 
+export interface EmployeeReport {
+  employeeId: string;
+  employeeName: string;
+  locationId: string;
+  locationName: string;
+  totalBookings: number;
+  completedBookings: number;
+  cancelledBookings: number;
+  revenue: number;
+  /** Приблизительно часов работы (по количеству выполненных заказов, 1 заказ ≈ 1 час) */
+  hoursWorked: number;
+}
+
 interface PeriodReport {
   period: string;
   startDate: Date;
@@ -25,6 +39,18 @@ interface PeriodReport {
   totalRevenue: number;
   averageCheck: number;
   boxReports: BoxReport[];
+}
+
+export interface EmployeesPeriodReport {
+  period: string;
+  startDate: Date;
+  endDate: Date;
+  totalBookings: number;
+  completedBookings: number;
+  cancelledBookings: number;
+  totalRevenue: number;
+  averageCheck: number;
+  employeeReports: EmployeeReport[];
 }
 
 interface LocationReport {
@@ -285,6 +311,84 @@ class ReportsService {
   async getTopBoxes(limit: number = 5, period: 'week' | 'month' | 'quarter' | 'year' = 'month'): Promise<BoxReport[]> {
     const report = await this.getBoxesReport(period);
     return report.boxReports.slice(0, limit);
+  }
+
+  async getEmployeesReport(
+    period: 'week' | 'month' | 'quarter' | 'year' | 'custom' = 'month',
+    locationId?: string,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<EmployeesPeriodReport> {
+    const { start, end } = this.getDateRange(period, startDate, endDate);
+
+    const employeeFilter: any = { isActive: true };
+    if (locationId) {
+      employeeFilter.locationId = new mongoose.Types.ObjectId(locationId);
+    }
+    const employees = await Employee.find(employeeFilter).populate('locationId', 'name');
+
+    const employeeReports: EmployeeReport[] = [];
+    let totalBookings = 0;
+    let completedBookings = 0;
+    let cancelledBookings = 0;
+    let totalRevenue = 0;
+
+    for (const emp of employees) {
+      const location = emp.locationId as any;
+
+      const bookings = await Booking.find({
+        employeeId: emp._id,
+        bookingDate: { $gte: start, $lte: end },
+      });
+
+      const empTotalBookings = bookings.length;
+      const empCompletedBookings = bookings.filter((b) => b.status === 'completed').length;
+      const empCancelledBookings = bookings.filter((b) => b.status === 'cancelled').length;
+      const empRevenue = bookings
+        .filter((b) => b.status === 'completed')
+        .reduce((sum, b) => sum + b.totalPrice, 0);
+      const hoursWorked = empCompletedBookings; // 1 заказ ≈ 1 час
+
+      totalBookings += empTotalBookings;
+      completedBookings += empCompletedBookings;
+      cancelledBookings += empCancelledBookings;
+      totalRevenue += empRevenue;
+
+      employeeReports.push({
+        employeeId: emp._id.toString(),
+        employeeName: emp.name,
+        locationId: location?._id?.toString() || '',
+        locationName: location?.name || '—',
+        totalBookings: empTotalBookings,
+        completedBookings: empCompletedBookings,
+        cancelledBookings: empCancelledBookings,
+        revenue: empRevenue,
+        hoursWorked,
+      });
+    }
+
+    employeeReports.sort((a, b) => b.revenue - a.revenue);
+
+    return {
+      period,
+      startDate: start,
+      endDate: end,
+      totalBookings,
+      completedBookings,
+      cancelledBookings,
+      totalRevenue,
+      averageCheck: completedBookings > 0 ? totalRevenue / completedBookings : 0,
+      employeeReports,
+    };
+  }
+
+  async getTopEmployees(
+    limit: number = 10,
+    period: 'week' | 'month' | 'quarter' | 'year' = 'month',
+    locationId?: string
+  ): Promise<EmployeeReport[]> {
+    const report = await this.getEmployeesReport(period, locationId);
+    return report.employeeReports.slice(0, limit);
   }
 
   async getSummary(): Promise<{

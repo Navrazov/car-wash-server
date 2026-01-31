@@ -77,6 +77,9 @@ export class AuthService {
         email: user.email,
         carModel: user.carModel,
         carNumber: user.carNumber,
+        totalVisits: user.totalVisits,
+        totalSpent: user.totalSpent,
+        rating: user.rating ?? 100,
       },
     };
   }
@@ -95,6 +98,7 @@ export class AuthService {
       carNumber: user.carNumber,
       totalVisits: user.totalVisits,
       totalSpent: user.totalSpent,
+      rating: user.rating ?? 100,
     };
   }
 

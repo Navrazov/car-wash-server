@@ -26,6 +26,7 @@ import {
 } from '../modules/employee';
 import { employeeScheduleRoutes } from '../modules/employee-schedule';
 import { reviewRoutes as adminReviewRoutes } from '../modules/review';
+import { adminInviteRoutes } from '../modules/admin-invite';
 
 const router = Router();
 
@@ -93,5 +94,10 @@ router.use('/employee-schedules', employeeScheduleRoutes);
  * Отзывы и рейтинги (админ)
  */
 router.use('/reviews', adminReviewRoutes);
+
+/**
+ * Приглашения админов (только super_admin)
+ */
+router.use('/invites', adminInviteRoutes);
 
 export default router;
