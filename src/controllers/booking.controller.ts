@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '@middlewares/auth.middleware';
 import Booking from '@models/Booking.model';
+import Review from '@models/Review.model';
 import User from '@models/User.model';
 import Location from '@models/Location.model';
 import Service from '@models/Service.model';
@@ -129,9 +130,19 @@ export const getUserBookings = async (req: AuthRequest, res: Response): Promise<
     const bookings = await Booking.find({ userId })
       .populate('locationId', 'name address phone')
       .populate('serviceId', 'name price duration')
+      .populate('employeeId', 'name phone position')
       .sort({ bookingDate: -1, bookingTime: -1 });
 
-    res.json(bookings);
+    const bookingIds = bookings.map((b) => b._id);
+    const reviewsWithBooking = await Review.find({ bookingId: { $in: bookingIds } }).select('bookingId');
+    const reviewedIds = new Set(reviewsWithBooking.map((r) => r.bookingId.toString()));
+
+    const result = bookings.map((b) => ({
+      ...b.toObject(),
+      hasReview: reviewedIds.has(b._id.toString()),
+    }));
+
+    res.json(result);
   } catch (error) {
     logger.error('Error getting user bookings:', error);
     res.status(500).json({ error: 'Ошибка сервера' });
