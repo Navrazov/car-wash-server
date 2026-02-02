@@ -206,19 +206,46 @@ export const getCustomerById = async (req: AuthRequest, res: Response): Promise<
   }
 };
 
+/** Допустимые поля для локации (совпадают со схемой) */
+const LOCATION_FIELDS = [
+  'name',
+  'address',
+  'phone',
+  'workingHours',
+  'description',
+  'coordinates',
+  'rating',
+  'totalReviews',
+  'isActive',
+] as const;
+
+function pickLocationBody(body: Record<string, unknown>): Record<string, unknown> {
+  const picked: Record<string, unknown> = {};
+  for (const key of LOCATION_FIELDS) {
+    if (body[key] !== undefined) picked[key] = body[key];
+  }
+  return picked;
+}
+
 /**
  * CRUD операции для локаций
  */
 export const createLocation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const location = new Location(req.body);
+    const body = pickLocationBody(req.body as Record<string, unknown>);
+    const location = new Location(body);
     await location.save();
 
     logger.info(`Location created: ${location._id}`);
 
     res.status(201).json(location);
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error creating location:', error);
+    if (error && typeof error === 'object' && 'name' in error && (error as { name: string }).name === 'ValidationError') {
+      const msg = (error as { message?: string }).message ?? 'Ошибка валидации';
+      res.status(400).json({ error: msg });
+      return;
+    }
     res.status(500).json({ error: 'Ошибка сервера' });
   }
 };
@@ -236,7 +263,8 @@ export const getLocations = async (req: AuthRequest, res: Response): Promise<voi
 export const updateLocation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const location = await Location.findByIdAndUpdate(id, req.body, {
+    const body = pickLocationBody(req.body as Record<string, unknown>);
+    const location = await Location.findByIdAndUpdate(id, body, {
       new: true,
       runValidators: true,
     });
@@ -249,8 +277,13 @@ export const updateLocation = async (req: AuthRequest, res: Response): Promise<v
     logger.info(`Location updated: ${id}`);
 
     res.json(location);
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error updating location:', error);
+    if (error && typeof error === 'object' && 'name' in error && (error as { name: string }).name === 'ValidationError') {
+      const msg = (error as { message?: string }).message ?? 'Ошибка валидации';
+      res.status(400).json({ error: msg });
+      return;
+    }
     res.status(500).json({ error: 'Ошибка сервера' });
   }
 };

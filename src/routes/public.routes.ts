@@ -6,6 +6,7 @@ import { boxService } from '../modules/box/box.service';
 import { getPublicEmployees } from '../modules/employee';
 import { reviewRoutes } from '../modules/review';
 import { adminInviteController } from '../modules/admin-invite';
+import { getCountries, getCities } from '../services/geocoding.service';
 
 const router = Router();
 
@@ -165,6 +166,37 @@ router.get('/locations/:locationId/boxes/available', async (req, res) => {
  * @access  Public
  */
 router.get('/employees', getPublicEmployees);
+
+/**
+ * @route   GET /api/public/geocoding/countries
+ * @desc    Список стран с фильтрацией на бэке (?q=поиск)
+ * @access  Public
+ */
+router.get('/geocoding/countries', (req, res) => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q : undefined;
+    const list = getCountries(q);
+    res.json(list);
+  } catch (error) {
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+/**
+ * @route   GET /api/public/geocoding/cities
+ * @desc    Подсказки городов (короткое название без округов). Фильтрация на бэке. ?countryCode=ru&q=мос
+ * @access  Public
+ */
+router.get('/geocoding/cities', async (req, res) => {
+  try {
+    const countryCode = typeof req.query.countryCode === 'string' ? req.query.countryCode : undefined;
+    const q = typeof req.query.q === 'string' ? req.query.q : '';
+    const list = await getCities(countryCode, q);
+    res.json(list);
+  } catch (error) {
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
 
 /**
  * Reviews
