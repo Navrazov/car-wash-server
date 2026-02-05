@@ -24,6 +24,7 @@ import {
   updateEmployee,
   deleteEmployee,
 } from '../modules/employee';
+import { updateCustomer, deleteCustomer } from '../modules/customer';
 import { employeeScheduleRoutes } from '../modules/employee-schedule';
 import { reviewRoutes as adminReviewRoutes } from '../modules/review';
 import { adminInviteRoutes } from '../modules/admin-invite';
@@ -49,6 +50,8 @@ router.put('/bookings/:id', updateBookingStatus);
  */
 router.get('/customers', getAllCustomers);
 router.get('/customers/:id', getCustomerById);
+router.put('/customers/:id', updateCustomer);
+router.delete('/customers/:id', deleteCustomer);
 
 /**
  * Локации

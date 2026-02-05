@@ -46,6 +46,41 @@ export class CustomerService {
 
     return rating;
   }
+
+  async update(id: string, data: { name?: string; email?: string; carModel?: string; carNumber?: string }) {
+    const customer = await User.findById(id);
+    if (!customer) {
+      throw new NotFoundError('Клиент');
+    }
+
+    const updated = await User.findByIdAndUpdate(
+      id,
+      { $set: data },
+      { new: true }
+    );
+
+    return updated;
+  }
+
+  async delete(id: string) {
+    const customer = await User.findById(id);
+    if (!customer) {
+      throw new NotFoundError('Клиент');
+    }
+
+    // Проверяем есть ли активные бронирования
+    const activeBookings = await Booking.countDocuments({
+      userId: id,
+      status: { $in: ['pending', 'confirmed'] },
+    });
+
+    if (activeBookings > 0) {
+      throw new Error('Нельзя удалить клиента с активными бронированиями');
+    }
+
+    await User.findByIdAndDelete(id);
+    return { success: true };
+  }
 }
 
 export const customerService = new CustomerService();

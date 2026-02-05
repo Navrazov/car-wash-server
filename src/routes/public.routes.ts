@@ -161,6 +161,32 @@ router.get('/locations/:locationId/boxes/available', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/public/locations/:locationId/boxes/occupied-slots
+ * @desc    Получить список занятых временных слотов
+ * @access  Public
+ */
+router.get('/locations/:locationId/boxes/occupied-slots', async (req, res) => {
+  try {
+    const { date, duration, boxId } = req.query;
+    
+    if (!date || !duration) {
+      res.status(400).json({ error: 'date and duration are required' });
+      return;
+    }
+    
+    const occupiedSlots = await boxService.getOccupiedTimeSlots(
+      req.params.locationId,
+      new Date(date as string),
+      parseInt(duration as string, 10),
+      boxId as string | undefined
+    );
+    res.json(occupiedSlots);
+  } catch (error) {
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+/**
  * @route   GET /api/public/employees
  * @desc    Получить список активных сотрудников для локации
  * @access  Public

@@ -91,6 +91,27 @@ export const boxController = {
       next(error);
     }
   },
+
+  async getOccupiedTimeSlots(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { locationId } = req.params;
+      const { date, duration, boxId } = req.query;
+
+      if (!date || !duration) {
+        return res.status(400).json({ message: 'date and duration are required' });
+      }
+
+      const occupiedSlots = await boxService.getOccupiedTimeSlots(
+        locationId,
+        new Date(date as string),
+        parseInt(duration as string, 10),
+        boxId as string | undefined
+      );
+      res.json(occupiedSlots);
+    } catch (error) {
+      next(error);
+    }
+  },
 };
 
 

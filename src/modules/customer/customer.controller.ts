@@ -20,4 +20,23 @@ export const getCustomerById = async (req: AuthRequest, res: Response, next: Nex
   }
 };
 
+export const updateCustomer = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { name, email, carModel, carNumber } = req.body;
+    const updated = await customerService.update(req.params.id, { name, email, carModel, carNumber });
+    res.json(updated);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteCustomer = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    await customerService.delete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
 

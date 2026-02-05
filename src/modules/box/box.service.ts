@@ -227,6 +227,100 @@ class BoxService {
 
     return availableBoxes;
   }
+
+  /**
+   * Get all occupied time slots for a given location/box on a specific date
+   * Returns which time slots are unavailable for booking
+   */
+  async getOccupiedTimeSlots(
+    locationId: string, 
+    date: Date, 
+    duration: number, 
+    boxId?: string
+  ): Promise<string[]> {
+    const timeSlots = [
+      '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
+      '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
+      '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
+      '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'
+    ];
+
+    // Get the start and end of the day
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    // Get all boxes for location
+    const boxes = boxId 
+      ? await Box.find({ _id: boxId, isActive: true })
+      : await Box.find({ locationId, isActive: true });
+
+    if (boxes.length === 0) {
+      return timeSlots; // All slots occupied if no boxes
+    }
+
+    // Get all bookings for these boxes on this day
+    const bookings = await Booking.find({
+      boxId: { $in: boxes.map(b => b._id) },
+      bookingDate: { $gte: dayStart, $lte: dayEnd },
+      status: { $nin: ['cancelled'] },
+    }).populate('serviceId', 'duration');
+
+    // Build a map of box -> list of booked time ranges
+    const boxBookings = new Map<string, Array<{start: number, end: number}>>();
+    for (const box of boxes) {
+      boxBookings.set(box._id.toString(), []);
+    }
+
+    for (const booking of bookings) {
+      const [hours, minutes] = booking.bookingTime.split(':').map(Number);
+      const startMinutes = hours * 60 + minutes;
+      const serviceDuration = (booking.serviceId as any)?.duration || 60;
+      const endMinutes = startMinutes + serviceDuration;
+
+      const boxIdStr = booking.boxId.toString();
+      if (boxBookings.has(boxIdStr)) {
+        boxBookings.get(boxIdStr)!.push({ start: startMinutes, end: endMinutes });
+      }
+    }
+
+    // Check each time slot
+    const occupiedSlots: string[] = [];
+
+    for (const timeSlot of timeSlots) {
+      const [slotHours, slotMinutes] = timeSlot.split(':').map(Number);
+      const slotStart = slotHours * 60 + slotMinutes;
+      const slotEnd = slotStart + duration;
+
+      // If boxId specified, check only that box
+      // If no boxId, slot is occupied only if ALL boxes are occupied at that time
+      let isOccupied: boolean;
+
+      if (boxId) {
+        // Single box mode - check if the specified box is available
+        const ranges = boxBookings.get(boxes[0]._id.toString()) || [];
+        isOccupied = ranges.some(range => slotStart < range.end && slotEnd > range.start);
+      } else {
+        // All boxes mode - slot is occupied if NO box is available
+        isOccupied = true;
+        for (const box of boxes) {
+          const ranges = boxBookings.get(box._id.toString()) || [];
+          const boxOccupied = ranges.some(range => slotStart < range.end && slotEnd > range.start);
+          if (!boxOccupied) {
+            isOccupied = false;
+            break;
+          }
+        }
+      }
+
+      if (isOccupied) {
+        occupiedSlots.push(timeSlot);
+      }
+    }
+
+    return occupiedSlots;
+  }
 }
 
 export const boxService = new BoxService();

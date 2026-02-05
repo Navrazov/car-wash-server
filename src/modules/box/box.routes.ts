@@ -14,6 +14,7 @@ router.delete('/:id', boxController.delete);
 router.get('/location/:locationId', boxController.getByLocation);
 router.get('/location/:locationId/status', boxController.getBoxesStatus);
 router.get('/location/:locationId/available', boxController.getAvailableBoxes);
+router.get('/location/:locationId/occupied-slots', boxController.getOccupiedTimeSlots);
 
 export default router;
 

@@ -39,15 +39,17 @@ export class EmployeeScheduleService {
       throw new ValidationError('Бокс не принадлежит указанной локации');
     }
 
-    // Check for conflicts
+    // Check for conflicts - бокс уже занят другим сотрудником в этот день
+    const dateStart = new Date(data.date)
+    dateStart.setHours(0, 0, 0, 0)
+    const dateEnd = new Date(data.date)
+    dateEnd.setHours(23, 59, 59, 999)
+    
     const conflicts = await EmployeeSchedule.find({
       boxId: data.boxId,
-      date: {
-        $gte: new Date(data.date.setHours(0, 0, 0, 0)),
-        $lt: new Date(data.date.setHours(23, 59, 59, 999)),
-      },
+      date: { $gte: dateStart, $lt: dateEnd },
       isActive: true,
-      _id: { $ne: data.employeeId }, // Exclude current employee if updating
+      employeeId: { $ne: data.employeeId }, // Исключаем текущего сотрудника
     });
 
     if (conflicts.length > 0) {
