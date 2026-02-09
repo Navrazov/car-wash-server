@@ -4,6 +4,10 @@ import {
   verifyCode,
   updateProfile,
   getProfile,
+  addCar,
+  updateCar,
+  deleteCar,
+  setDefaultCar,
 } from '@controllers/auth.controller';
 import { authenticateUser } from '@middlewares/auth.middleware';
 
@@ -36,5 +40,13 @@ router.get('/profile', authenticateUser, getProfile);
  * @access  Private
  */
 router.put('/profile', authenticateUser, updateProfile);
+
+/**
+ * Автомобили пользователя
+ */
+router.post('/cars', authenticateUser, addCar);
+router.put('/cars/:carId', authenticateUser, updateCar);
+router.delete('/cars/:carId', authenticateUser, deleteCar);
+router.put('/cars/:carId/default', authenticateUser, setDefaultCar);
 
 export default router;

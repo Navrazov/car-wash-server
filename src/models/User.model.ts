@@ -1,11 +1,20 @@
 import mongoose from 'mongoose';
 
+export interface ICar {
+  brand: string;
+  model: string;
+  plateNumber: string;
+  year?: number;
+  isDefault: boolean;
+}
+
 export interface IUser extends mongoose.Document {
   phone: string;
   name?: string;
   email?: string;
   carModel?: string;
   carNumber?: string;
+  cars: mongoose.Types.DocumentArray<ICar>;
   totalVisits: number;
   totalSpent: number;
   rating: number;
@@ -14,6 +23,17 @@ export interface IUser extends mongoose.Document {
   verificationCodeExpires?: Date;
   createdAt: Date;
 }
+
+const carSchema = new mongoose.Schema<ICar>(
+  {
+    brand: { type: String, required: true, trim: true },
+    model: { type: String, required: true, trim: true },
+    plateNumber: { type: String, required: true, trim: true, uppercase: true },
+    year: { type: Number },
+    isDefault: { type: Boolean, default: false },
+  },
+  { _id: true }
+);
 
 const userSchema = new mongoose.Schema<IUser>(
   {
@@ -41,6 +61,10 @@ const userSchema = new mongoose.Schema<IUser>(
       type: String,
       trim: true,
       uppercase: true,
+    },
+    cars: {
+      type: [carSchema],
+      default: [],
     },
     totalVisits: {
       type: Number,

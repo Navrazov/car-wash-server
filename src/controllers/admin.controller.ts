@@ -4,6 +4,7 @@ import Booking from '@models/Booking.model';
 import User from '@models/User.model';
 import Location from '@models/Location.model';
 import Service from '@models/Service.model';
+import Box from '@models/Box.model';
 import logger from '@config/logger';
 
 /**
@@ -233,8 +234,26 @@ function pickLocationBody(body: Record<string, unknown>): Record<string, unknown
 export const createLocation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const body = pickLocationBody(req.body as Record<string, unknown>);
+    const boxCount = typeof req.body.boxCount === 'number' ? Math.min(Math.max(req.body.boxCount, 1), 20) : 0;
+
     const location = new Location(body);
     await location.save();
+
+    // Auto-create boxes if boxCount is specified
+    if (boxCount > 0) {
+      const boxPromises = [];
+      for (let i = 1; i <= boxCount; i++) {
+        boxPromises.push(
+          new Box({
+            locationId: location._id,
+            name: `Бокс ${i}`,
+            number: i,
+          }).save()
+        );
+      }
+      await Promise.all(boxPromises);
+      logger.info(`Created ${boxCount} boxes for location ${location._id}`);
+    }
 
     logger.info(`Location created: ${location._id}`);
 

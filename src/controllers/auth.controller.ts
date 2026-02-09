@@ -118,6 +118,7 @@ export const verifyCode = async (req: Request, res: Response): Promise<void> => 
         email: user.email,
         carModel: user.carModel,
         carNumber: user.carNumber,
+        cars: user.cars || [],
       },
     });
   } catch (error) {
@@ -154,10 +155,179 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         email: user.email,
         carModel: user.carModel,
         carNumber: user.carNumber,
+        cars: user.cars || [],
       },
     });
   } catch (error) {
     logger.error('Error updating profile:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+};
+
+/**
+ * Добавить автомобиль
+ */
+export const addCar = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    const { brand, model, plateNumber, year } = req.body;
+
+    if (!brand || !model || !plateNumber) {
+      res.status(400).json({ error: 'Марка, модель и госномер обязательны' });
+      return;
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({ error: 'Пользователь не найден' });
+      return;
+    }
+
+    // If this is the first car, make it default
+    const isDefault = user.cars.length === 0;
+
+    user.cars.push({
+      brand,
+      model,
+      plateNumber: plateNumber.toUpperCase(),
+      year: year || undefined,
+      isDefault,
+    });
+
+    // Also update legacy carModel/carNumber fields
+    if (isDefault) {
+      user.carModel = `${brand} ${model}`;
+      user.carNumber = plateNumber.toUpperCase();
+    }
+
+    await user.save();
+
+    res.json({ success: true, cars: user.cars });
+  } catch (error) {
+    logger.error('Error adding car:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+};
+
+/**
+ * Обновить автомобиль
+ */
+export const updateCar = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    const { carId } = req.params;
+    const { brand, model, plateNumber, year } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({ error: 'Пользователь не найден' });
+      return;
+    }
+
+    const car = user.cars.id(carId);
+    if (!car) {
+      res.status(404).json({ error: 'Автомобиль не найден' });
+      return;
+    }
+
+    if (brand) car.brand = brand;
+    if (model) car.model = model;
+    if (plateNumber) car.plateNumber = plateNumber.toUpperCase();
+    if (year) car.year = year;
+
+    // Update legacy fields if this is the default car
+    if (car.isDefault) {
+      user.carModel = `${car.brand} ${car.model}`;
+      user.carNumber = car.plateNumber;
+    }
+
+    await user.save();
+
+    res.json({ success: true, cars: user.cars });
+  } catch (error) {
+    logger.error('Error updating car:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+};
+
+/**
+ * Удалить автомобиль
+ */
+export const deleteCar = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    const { carId } = req.params;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({ error: 'Пользователь не найден' });
+      return;
+    }
+
+    const carIndex = user.cars.findIndex((c: any) => c._id.toString() === carId);
+    if (carIndex === -1) {
+      res.status(404).json({ error: 'Автомобиль не найден' });
+      return;
+    }
+
+    const wasDefault = user.cars[carIndex].isDefault;
+    user.cars.splice(carIndex, 1);
+
+    // If we deleted the default car, make the first remaining car default
+    if (wasDefault && user.cars.length > 0) {
+      user.cars[0].isDefault = true;
+      user.carModel = `${user.cars[0].brand} ${user.cars[0].model}`;
+      user.carNumber = user.cars[0].plateNumber;
+    } else if (user.cars.length === 0) {
+      user.carModel = undefined;
+      user.carNumber = undefined;
+    }
+
+    await user.save();
+
+    res.json({ success: true, cars: user.cars });
+  } catch (error) {
+    logger.error('Error deleting car:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+};
+
+/**
+ * Установить автомобиль по умолчанию
+ */
+export const setDefaultCar = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    const { carId } = req.params;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({ error: 'Пользователь не найден' });
+      return;
+    }
+
+    let found = false;
+    for (const car of user.cars) {
+      if ((car as any)._id.toString() === carId) {
+        car.isDefault = true;
+        user.carModel = `${car.brand} ${car.model}`;
+        user.carNumber = car.plateNumber;
+        found = true;
+      } else {
+        car.isDefault = false;
+      }
+    }
+
+    if (!found) {
+      res.status(404).json({ error: 'Автомобиль не найден' });
+      return;
+    }
+
+    await user.save();
+
+    res.json({ success: true, cars: user.cars });
+  } catch (error) {
+    logger.error('Error setting default car:', error);
     res.status(500).json({ error: 'Ошибка сервера' });
   }
 };
@@ -183,6 +353,7 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
       email: user.email,
       carModel: user.carModel,
       carNumber: user.carNumber,
+      cars: user.cars || [],
       totalVisits: user.totalVisits,
       totalSpent: user.totalSpent,
     });

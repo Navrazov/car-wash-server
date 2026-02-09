@@ -1,5 +1,6 @@
 /**
- * Геокодирование: списки стран (фильтр на бэке) и городов (Nominatim, короткое название без округов).
+ * Геокодирование: списки стран и городов/адресов (Nominatim).
+ * Оптимизировано: параллельные запросы, короткие таймауты, countrycodes всегда задан.
  */
 
 import axios from 'axios';
@@ -9,6 +10,7 @@ const NOMINATIM_HEADERS = {
   'Accept-Language': 'ru',
   'User-Agent': 'CarWashServer/1.0 (https://github.com/carwash)',
 };
+const TIMEOUT = 5000; // 5 seconds — fast timeout
 
 /** Страны: название на русском + ISO 3166-1 alpha-2 */
 export const COUNTRIES: { name: string; code: string }[] = [
@@ -39,15 +41,9 @@ export const COUNTRIES: { name: string; code: string }[] = [
   { name: 'Другая', code: '' },
 ];
 
-export interface CountrySuggestion {
-  displayName: string;
-  code: string;
-}
-
+export interface CountrySuggestion { displayName: string; code: string; }
 export interface CitySuggestion {
-  /** Название города (как в Яндексе — title) */
   displayName: string;
-  /** Регион, страна (как в Яндексе — subtitle) */
   subtitle: string;
   fullName: string;
   lat: number;
@@ -55,41 +51,22 @@ export interface CitySuggestion {
   countryCode?: string;
   countryName?: string;
 }
-
-/** Извлечь короткое название города из ответа Nominatim (без округов, областей и т.д.) */
-function getShortCityName(item: {
-  display_name?: string;
-  address?: {
-    city?: string;
-    town?: string;
-    village?: string;
-    municipality?: string;
-    state?: string;
-    country?: string;
-    [key: string]: string | undefined;
-  };
-}): string {
-  const addr = item?.address;
-  if (!addr) return item.display_name ?? '';
-  const name =
-    addr.city ??
-    addr.town ??
-    addr.village ??
-    addr.municipality ??
-    addr.state ??
-    '';
-  return name.trim() || (item.display_name ?? '');
+export interface AddressSuggestion {
+  displayName: string;
+  shortDisplay: string;
+  lat: number;
+  lng: number;
 }
 
-/** Subtitle как в Яндексе: регион, область, страна (без города) */
-function getSubtitle(item: {
-  address?: {
-    state?: string;
-    country?: string;
-    state_district?: string;
-    [key: string]: string | undefined;
-  };
-}): string {
+// ── helpers ──────────────────────────────────────────────────
+
+function getShortCityName(item: { display_name?: string; address?: Record<string, string | undefined> }): string {
+  const addr = item?.address;
+  if (!addr) return item.display_name ?? '';
+  return (addr.city ?? addr.town ?? addr.village ?? addr.municipality ?? addr.state ?? item.display_name ?? '').trim();
+}
+
+function getSubtitle(item: { address?: Record<string, string | undefined> }): string {
   const addr = item?.address;
   if (!addr) return '';
   const parts: string[] = [];
@@ -99,16 +76,38 @@ function getSubtitle(item: {
   return parts.filter(Boolean).join(', ');
 }
 
-/** Список стран с фильтрацией на бэке. q — опциональный поиск. */
+function buildShortAddress(item: { display_name?: string; address?: Record<string, string | undefined> }): string {
+  const addr = item.address;
+  if (!addr) return item.display_name ?? '';
+  const road = addr.road ?? addr.pedestrian ?? addr.footway ?? '';
+  const house = addr.house_number ?? '';
+  const streetPart = [road, house].filter(Boolean).join(', ');
+  const city = addr.city ?? addr.town ?? addr.village ?? addr.municipality ?? '';
+  const parts = [streetPart, city].filter(Boolean);
+  return parts.length > 0 ? parts.join(', ') : (item.display_name ?? '');
+}
+
+async function nominatimGet(params: Record<string, string>) {
+  const { data } = await axios.get(NOMINATIM_BASE, { params, headers: NOMINATIM_HEADERS, timeout: TIMEOUT });
+  return Array.isArray(data) ? data : [];
+}
+
+// ── countries ────────────────────────────────────────────────
+
 export function getCountries(q?: string): CountrySuggestion[] {
   const query = (q ?? '').trim().toLowerCase();
   const list = query.length < 1
-    ? COUNTRIES.slice(0, 15)
-    : COUNTRIES.filter((c) => c.name.toLowerCase().includes(query)).slice(0, 15);
+    ? COUNTRIES
+    : COUNTRIES.filter((c) => c.name.toLowerCase().includes(query));
   return list.map((c) => ({ displayName: c.name, code: c.code }));
 }
 
-/** Подсказки городов через Nominatim (как suggest-geo в Яндексе). title = город, subtitle = регион, страна. countryCode опционален — без него поиск по всему миру. */
+// ── cities ───────────────────────────────────────────────────
+
+/**
+ * Подсказки городов. Один запрос с featuretype=city + countrycodes.
+ * С countrycodes запрос быстрый (~1-2с вместо 5-10с).
+ */
 export async function getCities(countryCode: string | undefined, q: string): Promise<CitySuggestion[]> {
   const trimmed = (q ?? '').trim();
   if (trimmed.length < 2) return [];
@@ -118,30 +117,31 @@ export async function getCities(countryCode: string | undefined, q: string): Pro
     format: 'json',
     limit: '10',
     addressdetails: '1',
+    featuretype: 'city',
   };
   if (countryCode) params.countrycodes = countryCode;
 
   try {
-    const { data } = await axios.get<
-      Array<{
-        lat: string;
-        lon: string;
-        display_name?: string;
-        address?: Record<string, string>;
-      }>
-    >(NOMINATIM_BASE, { params, headers: NOMINATIM_HEADERS, timeout: 8000 });
-    if (!Array.isArray(data)) return [];
+    const items = await nominatimGet(params);
 
+    const seen = new Set<string>();
     const results: CitySuggestion[] = [];
-    for (const item of data) {
+
+    for (const item of items) {
       const lat = parseFloat(item.lat);
       const lng = parseFloat(item.lon);
       if (Number.isNaN(lat) || Number.isNaN(lng)) continue;
+
       const shortName = getShortCityName(item);
       if (!shortName) continue;
+
+      const key = shortName.toLowerCase().trim();
+      if (seen.has(key)) continue;
+      seen.add(key);
+
       const addr = item.address ?? {};
       results.push({
-        displayName: shortName || item.display_name || '',
+        displayName: shortName,
         subtitle: getSubtitle(item),
         fullName: item.display_name ?? '',
         lat,
@@ -150,8 +150,84 @@ export async function getCities(countryCode: string | undefined, q: string): Pro
         countryName: (addr.country as string) || undefined,
       });
     }
-    return results;
+
+    return results.slice(0, 10);
   } catch {
     return [];
   }
+}
+
+// ── addresses ────────────────────────────────────────────────
+
+const RU_STREET_PREFIXES = ['улица', 'ул', 'ул.', 'проспект', 'пр', 'пр.', 'переулок', 'пер', 'пер.', 'бульвар', 'бул', 'бул.', 'шоссе', 'ш', 'ш.', 'набережная', 'наб', 'наб.', 'площадь', 'пл', 'пл.', 'проезд'];
+
+function hasStreetPrefix(q: string): boolean {
+  const lower = q.toLowerCase();
+  return RU_STREET_PREFIXES.some(p => lower.startsWith(p + ' ') || lower.startsWith(p + '.'));
+}
+
+/**
+ * Поиск адресов. Запускает 2 запроса параллельно (с «улица» и без) — берёт первый ответ.
+ * countryCode обязателен для скорости.
+ */
+export async function searchAddresses(
+  query: string,
+  city?: string,
+  countryCode?: string,
+  limit = 10,
+): Promise<AddressSuggestion[]> {
+  const trimmed = (query ?? '').trim();
+  if (trimmed.length < 2) return [];
+
+  const seen = new Set<string>();
+  const results: AddressSuggestion[] = [];
+
+  function pushItems(data: unknown[]) {
+    for (const item of data) {
+      const lat = parseFloat((item as any).lat);
+      const lng = parseFloat((item as any).lon);
+      if (Number.isNaN(lat) || Number.isNaN(lng)) continue;
+      const short = buildShortAddress(item as any);
+      const key = short.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      results.push({
+        displayName: (item as any).display_name ?? '',
+        shortDisplay: short,
+        lat,
+        lng,
+      });
+    }
+  }
+
+  const base: Record<string, string> = {
+    format: 'json',
+    limit: String(limit),
+    addressdetails: '1',
+  };
+  if (countryCode) base.countrycodes = countryCode;
+
+  // Запускаем 2 запроса ПАРАЛЛЕЛЬНО — это главная оптимизация.
+  // Вместо 4 последовательных запросов по 5с = 20с, делаем 2 параллельных по 5с = 5с.
+  const queries: Record<string, string>[] = [];
+
+  // Запрос 1: с «улица» (если пользователь не ввёл префикс) или прямой
+  if (!hasStreetPrefix(trimmed) && city) {
+    queries.push({ ...base, q: `улица ${trimmed} ${city}` });
+  }
+
+  // Запрос 2: прямой «<query> <city>»
+  const directQ = city ? `${trimmed} ${city}` : trimmed;
+  queries.push({ ...base, q: directQ });
+
+  // Запускаем параллельно
+  const settled = await Promise.allSettled(queries.map(p => nominatimGet(p)));
+
+  for (const result of settled) {
+    if (result.status === 'fulfilled') {
+      pushItems(result.value);
+    }
+  }
+
+  return results.slice(0, limit);
 }
