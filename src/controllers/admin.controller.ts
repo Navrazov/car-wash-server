@@ -3,15 +3,33 @@ import { AuthRequest } from '@middlewares/auth.middleware';
 import Booking from '@models/Booking.model';
 import User from '@models/User.model';
 import Location from '@models/Location.model';
+import Admin from '@models/Admin.model';
 import Service from '@models/Service.model';
 import Box from '@models/Box.model';
 import logger from '@config/logger';
+
+/**
+ * Получить ID локаций текущего админа (для скоупинга данных)
+ */
+async function getAdminLocationIds(adminId: string): Promise<string[]> {
+  const locationIds = await Location.find({ adminId }).distinct('_id');
+  return locationIds.map((id) => id.toString());
+}
 
 /**
  * Получение статистики для админ-панели
  */
 export const getStats = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const isSuperAdmin = req.admin?.role === 'super_admin';
+    const bookingFilter: Record<string, unknown> = {};
+
+    // Regular admins see only stats for their locations
+    if (!isSuperAdmin && req.admin?.id) {
+      const adminLocationIds = await Location.find({ adminId: req.admin.id }).distinct('_id');
+      bookingFilter.locationId = { $in: adminLocationIds };
+    }
+
     const [
       totalCustomers,
       totalBookings,
@@ -20,10 +38,11 @@ export const getStats = async (req: AuthRequest, res: Response): Promise<void> =
       todayBookings,
     ] = await Promise.all([
       User.countDocuments(),
-      Booking.countDocuments(),
-      Booking.countDocuments({ status: 'completed' }),
-      Booking.countDocuments({ status: 'pending', prepaymentStatus: 'paid' }),
+      Booking.countDocuments(bookingFilter),
+      Booking.countDocuments({ ...bookingFilter, status: 'completed' }),
+      Booking.countDocuments({ ...bookingFilter, status: 'pending', prepaymentStatus: 'paid' }),
       Booking.countDocuments({
+        ...bookingFilter,
         bookingDate: {
           $gte: new Date(new Date().setHours(0, 0, 0, 0)),
           $lt: new Date(new Date().setHours(23, 59, 59, 999)),
@@ -33,13 +52,13 @@ export const getStats = async (req: AuthRequest, res: Response): Promise<void> =
 
     // Общий доход
     const revenueData = await Booking.aggregate([
-      { $match: { status: 'completed' } },
+      { $match: { ...bookingFilter, status: 'completed' } },
       { $group: { _id: null, total: { $sum: '$totalPrice' } } },
     ]);
     const totalRevenue = revenueData[0]?.total || 0;
 
     // Последние бронирования
-    const recentBookings = await Booking.find()
+    const recentBookings = await Booking.find(bookingFilter)
       .populate('userId', 'name phone')
       .populate('locationId', 'name')
       .populate('serviceId', 'name')
@@ -48,7 +67,7 @@ export const getStats = async (req: AuthRequest, res: Response): Promise<void> =
 
     // Популярные услуги
     const topServices = await Booking.aggregate([
-      { $match: { status: { $ne: 'cancelled' } } },
+      { $match: { ...bookingFilter, status: { $ne: 'cancelled' } } },
       { $group: { _id: '$serviceId', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 5 },
@@ -101,6 +120,14 @@ export const getAllBookings = async (req: AuthRequest, res: Response): Promise<v
       };
     }
     if (locationId) filter.locationId = locationId;
+
+    // Regular admins see only bookings for their locations
+    if (req.admin?.role !== 'super_admin' && req.admin?.id) {
+      const adminLocationIds = await Location.find({ adminId: req.admin.id }).distinct('_id');
+      filter.locationId = filter.locationId
+        ? filter.locationId
+        : { $in: adminLocationIds };
+    }
 
     const bookings = await Booking.find(filter)
       .populate('userId', 'name phone email carModel carNumber')
@@ -233,10 +260,29 @@ function pickLocationBody(body: Record<string, unknown>): Record<string, unknown
  */
 export const createLocation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const adminId = req.admin?.id;
+    const adminRole = req.admin?.role;
+
+    // Enforce location limit for regular admins
+    if (adminRole !== 'super_admin') {
+      const admin = await Admin.findById(adminId).select('maxLocations');
+      if (!admin) {
+        res.status(401).json({ error: 'Администратор не найден' });
+        return;
+      }
+      const currentCount = await Location.countDocuments({ adminId });
+      if (currentCount >= (admin.maxLocations || 1)) {
+        res.status(403).json({
+          error: `Достигнут лимит локаций (${admin.maxLocations || 1}). Обратитесь к супер-администратору для увеличения лимита.`,
+        });
+        return;
+      }
+    }
+
     const body = pickLocationBody(req.body as Record<string, unknown>);
     const boxCount = typeof req.body.boxCount === 'number' ? Math.min(Math.max(req.body.boxCount, 1), 20) : 0;
 
-    const location = new Location(body);
+    const location = new Location({ ...body, adminId });
     await location.save();
 
     // Auto-create boxes if boxCount is specified
@@ -271,7 +317,11 @@ export const createLocation = async (req: AuthRequest, res: Response): Promise<v
 
 export const getLocations = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const locations = await Location.find().sort({ createdAt: -1 });
+    const filter: Record<string, unknown> = {};
+    if (req.admin?.role !== 'super_admin') {
+      filter.adminId = req.admin?.id;
+    }
+    const locations = await Location.find(filter).sort({ createdAt: -1 });
     res.json(locations);
   } catch (error) {
     logger.error('Error getting locations:', error);
@@ -282,6 +332,20 @@ export const getLocations = async (req: AuthRequest, res: Response): Promise<voi
 export const updateLocation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+
+    // Check ownership for regular admins
+    if (req.admin?.role !== 'super_admin') {
+      const existing = await Location.findById(id);
+      if (!existing) {
+        res.status(404).json({ error: 'Локация не найдена' });
+        return;
+      }
+      if (existing.adminId?.toString() !== req.admin?.id) {
+        res.status(403).json({ error: 'Нет доступа к этой локации' });
+        return;
+      }
+    }
+
     const body = pickLocationBody(req.body as Record<string, unknown>);
     const location = await Location.findByIdAndUpdate(id, body, {
       new: true,
@@ -310,6 +374,20 @@ export const updateLocation = async (req: AuthRequest, res: Response): Promise<v
 export const deleteLocation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+
+    // Check ownership for regular admins
+    if (req.admin?.role !== 'super_admin') {
+      const existing = await Location.findById(id);
+      if (!existing) {
+        res.status(404).json({ error: 'Локация не найдена' });
+        return;
+      }
+      if (existing.adminId?.toString() !== req.admin?.id) {
+        res.status(403).json({ error: 'Нет доступа к этой локации' });
+        return;
+      }
+    }
+
     const location = await Location.findByIdAndDelete(id);
 
     if (!location) {

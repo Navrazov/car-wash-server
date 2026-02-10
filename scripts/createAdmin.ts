@@ -16,23 +16,28 @@ const createAdmin = async () => {
 
     // Проверяем, есть ли уже админ
     const existingAdmin = await Admin.findOne({ username: 'admin' });
-    
+
     if (existingAdmin) {
-      logger.info('Admin already exists');
-      process.exit(0);
+      logger.info('Admin already exists, resetting password and ensuring super_admin role...');
+      existingAdmin.role = 'super_admin';
+      existingAdmin.isActive = true;
+      existingAdmin.maxLocations = 999;
+      existingAdmin.password = 'admin123';
+      await existingAdmin.save();
+      logger.info('✅ Admin updated successfully!');
+    } else {
+      const admin = new Admin({
+        username: 'admin',
+        password: 'admin123',
+        name: 'Администратор',
+        email: 'admin@carwash.ru',
+        role: 'super_admin',
+        maxLocations: 999,
+      });
+      await admin.save();
+      logger.info('✅ Admin created successfully!');
     }
 
-    // Создаем администратора
-    const admin = new Admin({
-      username: 'admin',
-      password: 'admin123',
-      name: 'Администратор',
-      email: 'admin@carwash.ru',
-      role: 'super_admin',
-    });
-    
-    await admin.save();
-    logger.info('✅ Admin created successfully!');
     logger.info('   Username: admin');
     logger.info('   Password: admin123');
 

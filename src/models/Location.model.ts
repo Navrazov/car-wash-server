@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 export interface ILocation extends mongoose.Document {
+  adminId?: mongoose.Types.ObjectId;
   name: string;
   address: string;
   phone?: string;
@@ -19,6 +20,10 @@ export interface ILocation extends mongoose.Document {
 
 const locationSchema = new mongoose.Schema<ILocation>(
   {
+    adminId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Admin',
+    },
     name: {
       type: String,
       required: true,
@@ -65,6 +70,7 @@ const locationSchema = new mongoose.Schema<ILocation>(
 );
 
 // Indexes
+locationSchema.index({ adminId: 1 });
 locationSchema.index({ isActive: 1 });
 locationSchema.index({ createdAt: -1 });
 

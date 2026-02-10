@@ -25,6 +25,15 @@ export class EmployeeService {
     return employee;
   }
 
+  async getByLocationIds(locationIds: string[], activeOnly: boolean = false) {
+    const filter: Record<string, unknown> = { locationId: { $in: locationIds } };
+    if (activeOnly) filter.isActive = true;
+    return Employee.find(filter)
+      .populate('locationId', 'name address')
+      .populate('boxId', 'name number')
+      .sort({ createdAt: -1 });
+  }
+
   async getByLocation(locationId: string, activeOnly: boolean = true) {
     const filter: Record<string, unknown> = { locationId, isActive: activeOnly };
     return Employee.find(filter)

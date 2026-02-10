@@ -1,6 +1,7 @@
 import AdminInvite, { generateInviteToken } from '@models/AdminInvite.model';
 import Admin from '@models/Admin.model';
 import { NotFoundError, ValidationError } from '@shared/errors';
+import { emailService } from '@services/email.service';
 import logger from '@config/logger';
 
 const INVITE_EXPIRES_DAYS = 7;
@@ -36,6 +37,13 @@ export class AdminInviteService {
 
     logger.info(`Admin invite created for ${email} by ${createdBy}`);
 
+    const inviteLink = `${process.env.ADMIN_APP_URL || 'http://localhost:5173'}/invite/${invite.token}`;
+
+    // Send invite email (non-blocking — don't fail if email fails)
+    emailService.sendInviteEmail(email, inviteLink).catch((err) => {
+      logger.error(`Failed to send invite email to ${email}:`, err);
+    });
+
     return {
       invite: {
         id: invite._id,
@@ -44,7 +52,7 @@ export class AdminInviteService {
         expiresAt: invite.expiresAt,
         status: invite.status,
       },
-      inviteLink: `${process.env.ADMIN_APP_URL || 'http://localhost:5173'}/invite/${invite.token}`,
+      inviteLink,
     };
   }
 

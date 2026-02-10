@@ -1,28 +1,38 @@
 import { Request, Response, NextFunction } from 'express';
 import { employeeService } from './employee.service';
 import { AuthRequest } from '@middlewares/auth.middleware';
-import Admin from '@models/Admin.model';
+import Location from '@models/Location.model';
 
 export const getEmployees = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { locationId, activeOnly } = req.query;
-    
-    // Если админ не super_admin, фильтруем по его локации
-    let adminLocationId: string | undefined;
+
+    // Super admin sees all, regular admin only their locations
     if (req.admin && req.admin.role !== 'super_admin') {
-      const admin = await Admin.findById(req.admin.id).select('locationId');
-      if (admin?.locationId) {
-        adminLocationId = admin.locationId.toString();
+      const adminLocationIds = await Location.find({ adminId: req.admin.id }).distinct('_id');
+
+      if (locationId) {
+        // Validate that requested locationId belongs to this admin
+        const isOwned = adminLocationIds.some((id: any) => id.toString() === locationId);
+        if (!isOwned) {
+          res.status(403).json({ error: 'Нет доступа к этой локации' });
+          return;
+        }
+        const employees = await employeeService.getAll(locationId as string, activeOnly === 'true');
+        res.json(employees);
+        return;
       }
+
+      // No specific locationId — return employees for all admin's locations
+      const employees = await employeeService.getByLocationIds(
+        adminLocationIds.map((id: any) => id.toString()),
+        activeOnly === 'true'
+      );
+      res.json(employees);
+      return;
     }
-    
-    // Используем locationId из запроса или локацию админа
-    const filterLocationId = (locationId as string) || adminLocationId;
-    
-    const employees = await employeeService.getAll(
-      filterLocationId,
-      activeOnly === 'true'
-    );
+
+    const employees = await employeeService.getAll(locationId as string, activeOnly === 'true');
     res.json(employees);
   } catch (error) {
     next(error);
@@ -53,17 +63,22 @@ export const getEmployeeById = async (req: AuthRequest, res: Response, next: Nex
 
 export const createEmployee = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    // Если админ не super_admin, проверяем права доступа
     if (req.admin && req.admin.role !== 'super_admin') {
-      const admin = await Admin.findById(req.admin.id).select('locationId');
-      if (admin?.locationId) {
-        // Устанавливаем locationId из админа, если не указан или отличается
-        if (!req.body.locationId || req.body.locationId !== admin.locationId.toString()) {
-          req.body.locationId = admin.locationId.toString();
+      const adminLocationIds = await Location.find({ adminId: req.admin.id }).distinct('_id');
+      const locationIdStr = req.body.locationId;
+
+      // Ensure locationId belongs to admin
+      if (locationIdStr) {
+        const isOwned = adminLocationIds.some((id: any) => id.toString() === locationIdStr);
+        if (!isOwned) {
+          res.status(403).json({ error: 'Нет доступа к этой локации' });
+          return;
         }
+      } else if (adminLocationIds.length === 1) {
+        req.body.locationId = adminLocationIds[0].toString();
       }
     }
-    
+
     const employee = await employeeService.create(req.body);
     res.status(201).json(employee);
   } catch (error) {
@@ -73,21 +88,27 @@ export const createEmployee = async (req: AuthRequest, res: Response, next: Next
 
 export const updateEmployee = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    // Если админ не super_admin, проверяем права доступа
     if (req.admin && req.admin.role !== 'super_admin') {
-      const admin = await Admin.findById(req.admin.id).select('locationId');
+      const adminLocationIds = await Location.find({ adminId: req.admin.id }).distinct('_id');
       const employee = await employeeService.getById(req.params.id);
-      
-      if (admin?.locationId && employee.locationId.toString() !== admin.locationId.toString()) {
-        return res.status(403).json({ error: 'Нет доступа к этому сотруднику' });
+      const empLocationId = String((employee.locationId as any)?._id ?? employee.locationId);
+
+      const isOwned = adminLocationIds.some((id: any) => id.toString() === empLocationId);
+      if (!isOwned) {
+        res.status(403).json({ error: 'Нет доступа к этому сотруднику' });
+        return;
       }
-      
-      // Запрещаем изменение locationId для обычных админов
-      if (req.body.locationId && req.body.locationId !== admin.locationId?.toString()) {
-        return res.status(403).json({ error: 'Нельзя изменить локацию сотрудника' });
+
+      // Don't allow moving to a location the admin doesn't own
+      if (req.body.locationId) {
+        const targetOwned = adminLocationIds.some((id: any) => id.toString() === req.body.locationId);
+        if (!targetOwned) {
+          res.status(403).json({ error: 'Нельзя перевести сотрудника в чужую локацию' });
+          return;
+        }
       }
     }
-    
+
     const employee = await employeeService.update(req.params.id, req.body);
     res.json(employee);
   } catch (error) {
@@ -97,16 +118,18 @@ export const updateEmployee = async (req: AuthRequest, res: Response, next: Next
 
 export const deleteEmployee = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    // Если админ не super_admin, проверяем права доступа
     if (req.admin && req.admin.role !== 'super_admin') {
-      const admin = await Admin.findById(req.admin.id).select('locationId');
+      const adminLocationIds = await Location.find({ adminId: req.admin.id }).distinct('_id');
       const employee = await employeeService.getById(req.params.id);
-      
-      if (admin?.locationId && employee.locationId.toString() !== admin.locationId.toString()) {
-        return res.status(403).json({ error: 'Нет доступа к этому сотруднику' });
+      const empLocationId = String((employee.locationId as any)?._id ?? employee.locationId);
+
+      const isOwned = adminLocationIds.some((id: any) => id.toString() === empLocationId);
+      if (!isOwned) {
+        res.status(403).json({ error: 'Нет доступа к этому сотруднику' });
+        return;
       }
     }
-    
+
     await employeeService.delete(req.params.id);
     res.status(204).send();
   } catch (error) {

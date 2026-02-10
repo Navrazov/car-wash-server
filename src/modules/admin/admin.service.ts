@@ -1,4 +1,5 @@
 import Admin from '@models/Admin.model';
+import Location from '@models/Location.model';
 import { generateAdminToken } from '@shared/utils';
 import { NotFoundError, UnauthorizedError, ValidationError } from '@shared/errors';
 import logger from '@config/logger';
@@ -36,6 +37,7 @@ export class AdminService {
         name: admin.name,
         email: admin.email,
         role: admin.role,
+        maxLocations: admin.maxLocations,
       },
     };
   }
@@ -47,12 +49,16 @@ export class AdminService {
       throw new NotFoundError('Администратор');
     }
 
+    const locationCount = await Location.countDocuments({ adminId: admin._id });
+
     return {
       id: admin._id,
       username: admin.username,
       name: admin.name,
       email: admin.email,
       role: admin.role,
+      maxLocations: admin.maxLocations,
+      locationCount,
       lastLogin: admin.lastLogin,
     };
   }

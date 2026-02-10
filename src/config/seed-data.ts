@@ -16,16 +16,17 @@ export const seedDatabase = async () => {
     logger.info('🌱 Seeding database with initial data...');
 
     // Create admin
-    const adminExists = await Admin.findOne({ username: 'admin' });
-    if (!adminExists) {
-      const admin = new Admin({
+    let adminDoc = await Admin.findOne({ username: 'admin' });
+    if (!adminDoc) {
+      adminDoc = new Admin({
         username: 'admin',
         password: 'admin123',
         name: 'Администратор',
         email: 'admin@carwash.ru',
         role: 'super_admin',
+        maxLocations: 999,
       });
-      await admin.save();
+      await adminDoc.save();
       logger.info('✅ Admin created (username: admin, password: admin123)');
     }
 
@@ -57,7 +58,8 @@ export const seedDatabase = async () => {
       },
     ];
 
-    const createdLocations = await Location.insertMany(locations);
+    const locationsWithAdmin = locations.map((loc) => ({ ...loc, adminId: adminDoc!._id }));
+    const createdLocations = await Location.insertMany(locationsWithAdmin);
     logger.info(`✅ ${locations.length} locations created`);
 
     // Create boxes for each location

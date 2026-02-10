@@ -14,7 +14,7 @@ import {
   updateService,
   deleteService,
 } from '@controllers/admin.controller';
-import { authenticateAdmin } from '@middlewares/auth.middleware';
+import { authenticateAdmin, requireSuperAdmin } from '@middlewares/auth.middleware';
 import { boxRoutes } from '../modules/box';
 import { reportsRoutes } from '../modules/reports';
 import {
@@ -28,6 +28,7 @@ import { updateCustomer, deleteCustomer } from '../modules/customer';
 import { employeeScheduleRoutes } from '../modules/employee-schedule';
 import { reviewRoutes as adminReviewRoutes } from '../modules/review';
 import { adminInviteRoutes } from '../modules/admin-invite';
+import { adminManagementRoutes } from '../modules/admin-management';
 
 const router = Router();
 
@@ -97,6 +98,11 @@ router.use('/employee-schedules', employeeScheduleRoutes);
  * Отзывы и рейтинги (админ)
  */
 router.use('/reviews', adminReviewRoutes);
+
+/**
+ * Управление администраторами (только super_admin)
+ */
+router.use('/admins', requireSuperAdmin, adminManagementRoutes);
 
 /**
  * Приглашения админов (только super_admin)
