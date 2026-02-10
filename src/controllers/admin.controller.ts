@@ -30,6 +30,11 @@ export const getStats = async (req: AuthRequest, res: Response): Promise<void> =
       bookingFilter.locationId = { $in: adminLocationIds };
     }
 
+    // For regular admins, count only customers who booked at their locations
+    const customerCountPromise = !isSuperAdmin && bookingFilter.locationId
+      ? Booking.distinct('userId', bookingFilter).then((ids) => ids.length)
+      : User.countDocuments();
+
     const [
       totalCustomers,
       totalBookings,
@@ -37,7 +42,7 @@ export const getStats = async (req: AuthRequest, res: Response): Promise<void> =
       pendingBookings,
       todayBookings,
     ] = await Promise.all([
-      User.countDocuments(),
+      customerCountPromise,
       Booking.countDocuments(bookingFilter),
       Booking.countDocuments({ ...bookingFilter, status: 'completed' }),
       Booking.countDocuments({ ...bookingFilter, status: 'pending', prepaymentStatus: 'paid' }),
@@ -196,6 +201,15 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response): Prom
  */
 export const getAllCustomers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (req.admin?.role !== 'super_admin' && req.admin?.id) {
+      // Regular admin: only customers who have bookings at their locations
+      const adminLocationIds = await Location.find({ adminId: req.admin.id }).distinct('_id');
+      const customerIds = await Booking.distinct('userId', { locationId: { $in: adminLocationIds } });
+      const customers = await User.find({ _id: { $in: customerIds } }).sort({ createdAt: -1 });
+      res.json(customers);
+      return;
+    }
+
     const customers = await User.find().sort({ createdAt: -1 });
     res.json(customers);
   } catch (error) {
@@ -218,8 +232,22 @@ export const getCustomerById = async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
-    // Получаем историю бронирований клиента
-    const bookings = await Booking.find({ userId: id })
+    const bookingFilter: Record<string, unknown> = { userId: id };
+
+    // Regular admin: only show bookings at their locations, and verify customer access
+    if (req.admin?.role !== 'super_admin' && req.admin?.id) {
+      const adminLocationIds = await Location.find({ adminId: req.admin.id }).distinct('_id');
+      bookingFilter.locationId = { $in: adminLocationIds };
+
+      // Check that this customer has at least one booking at admin's locations
+      const hasAccess = await Booking.exists({ userId: id, locationId: { $in: adminLocationIds } });
+      if (!hasAccess) {
+        res.status(403).json({ error: 'Нет доступа к этому клиенту' });
+        return;
+      }
+    }
+
+    const bookings = await Booking.find(bookingFilter)
       .populate('locationId', 'name')
       .populate('serviceId', 'name price')
       .sort({ bookingDate: -1 });

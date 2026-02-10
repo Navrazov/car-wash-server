@@ -25,6 +25,7 @@
     "morgan": "^1.10.0",
     "node-cron": "^3.0.3",
     "nodemailer": "^8.0.1",
+    "resend": "^6.9.1",
     "tsconfig-paths": "^4.2.0",
     "uuid": "^11.0.3",
     "winston": "^3.11.0"

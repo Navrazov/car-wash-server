@@ -1,42 +1,32 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import logger from '@config/logger';
 
 class EmailService {
-  private transporter: nodemailer.Transporter | null = null;
+  private resend: Resend | null = null;
 
-  private getTransporter() {
-    if (!this.transporter) {
-      const host = process.env.SMTP_HOST;
-      const port = Number(process.env.SMTP_PORT) || 587;
-      const user = process.env.SMTP_USER;
-      const pass = process.env.SMTP_PASS;
-
-      if (!host || !user || !pass) {
-        logger.warn('SMTP not configured — emails will not be sent');
+  private getClient(): Resend | null {
+    if (!this.resend) {
+      const apiKey = process.env.RESEND_API_KEY;
+      if (!apiKey) {
+        logger.warn('RESEND_API_KEY not configured — emails will not be sent');
         return null;
       }
-
-      this.transporter = nodemailer.createTransport({
-        host,
-        port,
-        secure: port === 465,
-        auth: { user, pass },
-      });
+      this.resend = new Resend(apiKey);
     }
-    return this.transporter;
+    return this.resend;
   }
 
   async sendInviteEmail(email: string, inviteLink: string): Promise<boolean> {
-    const transport = this.getTransporter();
-    if (!transport) {
-      logger.warn(`SMTP not configured, invite link for ${email}: ${inviteLink}`);
+    const client = this.getClient();
+    if (!client) {
+      logger.warn(`Email not configured, invite link for ${email}: ${inviteLink}`);
       return false;
     }
 
-    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+    const from = process.env.RESEND_FROM || 'АвтоМойка <onboarding@resend.dev>';
 
     try {
-      await transport.sendMail({
+      const { error } = await client.emails.send({
         from,
         to: email,
         subject: 'Приглашение в панель управления АвтоМойка',
@@ -52,6 +42,11 @@ class EmailService {
           </div>
         `,
       });
+
+      if (error) {
+        logger.error(`Failed to send invite email to ${email}:`, error);
+        return false;
+      }
 
       logger.info(`Invite email sent to ${email}`);
       return true;
