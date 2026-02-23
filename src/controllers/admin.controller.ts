@@ -7,6 +7,7 @@ import Admin from '@models/Admin.model';
 import Service from '@models/Service.model';
 import Box from '@models/Box.model';
 import logger from '@config/logger';
+import { forwardGeocode } from '@services/geocoding.service';
 
 /**
  * Получить ID локаций текущего админа (для скоупинга данных)
@@ -283,6 +284,35 @@ function pickLocationBody(body: Record<string, unknown>): Record<string, unknown
   return picked;
 }
 
+function hasValidCoordinates(payload: Record<string, unknown>): boolean {
+  const coords = payload.coordinates as { latitude?: unknown; longitude?: unknown } | undefined;
+  return typeof coords?.latitude === 'number' && typeof coords?.longitude === 'number';
+}
+
+async function enrichLocationCoordinates(
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const hasCoordinates =
+    typeof (payload.coordinates as { latitude?: unknown; longitude?: unknown } | undefined)?.latitude === 'number' &&
+    typeof (payload.coordinates as { latitude?: unknown; longitude?: unknown } | undefined)?.longitude === 'number';
+
+  if (hasCoordinates) return payload;
+
+  const address = typeof payload.address === 'string' ? payload.address.trim() : '';
+  if (address.length < 3) return payload;
+
+  const geocoded = await forwardGeocode(address);
+  if (!geocoded) return payload;
+
+  return {
+    ...payload,
+    coordinates: {
+      latitude: geocoded.lat,
+      longitude: geocoded.lng,
+    },
+  };
+}
+
 /**
  * CRUD операции для локаций
  */
@@ -307,7 +337,16 @@ export const createLocation = async (req: AuthRequest, res: Response): Promise<v
       }
     }
 
-    const body = pickLocationBody(req.body as Record<string, unknown>);
+    const body = await enrichLocationCoordinates(pickLocationBody(req.body as Record<string, unknown>));
+    if (!body.name && typeof body.address === 'string' && body.address.trim().length > 0) {
+      body.name = body.address.trim();
+    }
+    if (!hasValidCoordinates(body)) {
+      res.status(400).json({
+        error: 'Не удалось определить координаты локации. Уточните адрес или выберите точку на карте.',
+      });
+      return;
+    }
     const boxCount = typeof req.body.boxCount === 'number' ? Math.min(Math.max(req.body.boxCount, 1), 20) : 0;
 
     const location = new Location({ ...body, adminId });
@@ -350,6 +389,26 @@ export const getLocations = async (req: AuthRequest, res: Response): Promise<voi
       filter.adminId = req.admin?.id;
     }
     const locations = await Location.find(filter).sort({ createdAt: -1 });
+
+    // Backfill coordinates for legacy records that only have address.
+    const missing = locations
+      .filter((location) => {
+        const hasCoords =
+          typeof location.coordinates?.latitude === 'number' &&
+          typeof location.coordinates?.longitude === 'number';
+        return !hasCoords && !!location.address?.trim();
+      })
+      .slice(0, 5);
+
+    await Promise.all(
+      missing.map(async (location) => {
+        const geocoded = await forwardGeocode(location.address.trim());
+        if (!geocoded) return;
+        location.coordinates = { latitude: geocoded.lat, longitude: geocoded.lng };
+        await location.save();
+      })
+    );
+
     res.json(locations);
   } catch (error) {
     logger.error('Error getting locations:', error);
@@ -374,7 +433,13 @@ export const updateLocation = async (req: AuthRequest, res: Response): Promise<v
       }
     }
 
-    const body = pickLocationBody(req.body as Record<string, unknown>);
+    const body = await enrichLocationCoordinates(pickLocationBody(req.body as Record<string, unknown>));
+    if (!hasValidCoordinates(body) && body.address !== undefined) {
+      res.status(400).json({
+        error: 'Не удалось определить координаты локации. Уточните адрес или выберите точку на карте.',
+      });
+      return;
+    }
     const location = await Location.findByIdAndUpdate(id, body, {
       new: true,
       runValidators: true,

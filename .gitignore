@@ -39,3 +39,10 @@ coverage/
 # Temporary files
 tmp/
 temp/
+
+# Local runtime data
+.local-mongo-data/
+.mongodb/
+
+# Tooling cache
+.eslintcache

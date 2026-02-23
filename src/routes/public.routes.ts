@@ -6,7 +6,7 @@ import { boxService } from '../modules/box/box.service';
 import { getPublicEmployees } from '../modules/employee';
 import { reviewRoutes } from '../modules/review';
 import { adminInviteController } from '../modules/admin-invite';
-import { getCountries, getCities, searchAddresses } from '../services/geocoding.service';
+import { getCountries, getCities, searchAddresses, forwardGeocode, reverseGeocode } from '../services/geocoding.service';
 
 const router = Router();
 
@@ -32,6 +32,26 @@ router.post('/invite/:token/accept', adminInviteController.acceptInvite);
 router.get('/locations', async (req, res) => {
   try {
     const locations = await Location.find({ isActive: true }).sort({ name: 1 });
+
+    // Backfill coordinates for records that only contain address.
+    const missing = locations
+      .filter((location) => {
+        const hasCoords =
+          typeof location.coordinates?.latitude === 'number' &&
+          typeof location.coordinates?.longitude === 'number';
+        return !hasCoords && !!location.address?.trim();
+      })
+      .slice(0, 5);
+
+    await Promise.all(
+      missing.map(async (location) => {
+        const geocoded = await forwardGeocode(location.address.trim());
+        if (!geocoded) return;
+        location.coordinates = { latitude: geocoded.lat, longitude: geocoded.lng };
+        await location.save();
+      })
+    );
+
     res.json(locations);
   } catch (error) {
     res.status(500).json({ error: 'Ошибка сервера' });
@@ -236,6 +256,49 @@ router.get('/geocoding/addresses', async (req, res) => {
     const countryCode = typeof req.query.countryCode === 'string' ? req.query.countryCode : undefined;
     const list = await searchAddresses(q, city, countryCode);
     res.json(list);
+  } catch (error) {
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+/**
+ * @route   GET /api/public/geocoding/forward
+ * @desc    Геокодирование адреса → координаты (Яндекс Geocoder + кеш)
+ * @access  Public
+ */
+router.get('/geocoding/forward', async (req, res) => {
+  try {
+    const address = typeof req.query.address === 'string' ? req.query.address : '';
+    const result = await forwardGeocode(address);
+    if (!result) {
+      res.json(null);
+      return;
+    }
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+/**
+ * @route   GET /api/public/geocoding/reverse
+ * @desc    Геокодирование координат → адрес
+ * @access  Public
+ */
+router.get('/geocoding/reverse', async (req, res) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      res.status(400).json({ error: 'lat и lng обязательны' });
+      return;
+    }
+    const result = await reverseGeocode(lat, lng);
+    if (!result) {
+      res.json(null);
+      return;
+    }
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Ошибка сервера' });
   }
